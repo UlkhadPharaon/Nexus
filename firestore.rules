@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == 'ulrichtapsoba2009@gmail.com'; }
+
+    // Global safety net (deny by default, required by strict rules)
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+
+    match /admins/{userId} {
+      allow read: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    match /characters/{characterId} {
+      allow read: if resource.data.isPublic == true || (isSignedIn() && (request.auth.uid == resource.data.creatorId || isAdmin()));
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isAdmin());
+    }
+    
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId || isAdmin());
+      }
+    }
+  }
+}

@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Syne:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  --font-display: 'Syne', 'Inter', sans-serif;
+
+  /* Dark Romance / Edgy Palette (Crimson & Anthracite) */
+  --color-primary-50: #FFF1F2;
+  --color-primary-100: #FFE4E6;
+  --color-primary-200: #FECDD3;
+  --color-primary-300: #FDA4AF;
+  --color-primary-400: #FB7185;
+  --color-primary-500: #F43F5E; /* Vibrant Crimson */
+  --color-primary-600: #E11D48;
+  --color-primary-700: #BE123C;
+  --color-primary-800: #9F1239;
+  --color-primary-900: #881337;
+
+  /* Accent (Dark Wine/Deep Maroon) */
+  --color-accent-50: #FDF2F2;
+  --color-accent-100: #FCE7E7;
+  --color-accent-200: #F8D1D1;
+  --color-accent-300: #F1A8A8;
+  --color-accent-400: #E67777;
+  --color-accent-500: #D34E4E;
+  --color-accent-600: #B93737;
+  --color-accent-700: #992828;
+  --color-accent-800: #7F1D1D;
+  --color-accent-900: #671717;
+
+  /* Surface (Dark Anthracite) */
+  --color-surface-500: #404040;
+  --color-surface-600: #262626;
+  --color-surface-700: #1C1C1C;
+  --color-surface-800: #121212;
+  --color-surface-900: #0A0A0A;
+  --color-surface-950: #000000;
+
+  --color-text-primary: #FAFAFA;
+  --color-text-secondary: #A3A3A3;
+  --color-text-muted: #666666;
+
+  --animate-fade-in: fadeIn 0.3s ease-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-typing: typing 1.2s infinite;
+  --animate-glow-pulse: glowPulse 2s ease-in-out infinite;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(244,63,94,0.15); }
+    50% { box-shadow: 0 0 40px rgba(244,63,94,0.3); }
+  }
+}
+
+@layer base {
+  html { 
+    @apply bg-surface-950 text-text-primary; 
+  }
+  body { 
+    @apply antialiased overflow-x-hidden; 
+  }
+  *, ::before, ::after { 
+    @apply border-white/5; 
+  }
+  
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-surface-900; }
+  ::-webkit-scrollbar-thumb { @apply bg-surface-600; }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface-900/40 backdrop-blur-xl border border-white/5 rounded-none shadow-lg transition-all;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-400 to-accent-500 bg-clip-text text-transparent font-serif font-bold not-italic;
+  }
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-500
+           text-white font-sans font-medium normal-case tracking-wide text-sm px-6 py-3 border border-primary-500/50
+           transition-all duration-200 shadow-lg shadow-surface-950/20 active:scale-95 rounded-sm;
+  }
+  .btn-ghost {
+    @apply bg-transparent border border-white/10 hover:bg-white/5 hover:border-primary-500/50
+           text-text-primary hover:text-primary-400 font-sans font-medium normal-case tracking-wide text-sm px-6 py-3
+           transition-all duration-200 active:scale-95 rounded-sm;
+  }
+  .input-field {
+    @apply bg-surface-900 border border-white/10 focus:ring-0 focus:border-primary-500 px-4 py-3 text-text-primary placeholder-text-muted outline-none w-full transition-all rounded-sm shadow-none;
+  }
+  .message-user {
+    @apply bg-surface-800 border-l-2 border-primary-500 rounded-sm px-5 py-4 max-w-[80%] ml-auto shadow-none text-text-primary;
+  }
+  .message-character {
+    @apply bg-surface-900 border-l-2 border-surface-600 rounded-sm px-5 py-4 max-w-[80%] shadow-none text-text-primary;
+  }
+  
+  .markdown-body {
+    @apply font-sans;
+  }
+  .markdown-body p {
+    @apply mb-2 last:mb-0;
+  }
+  .markdown-body em {
+    @apply text-primary-300 italic font-serif text-[1.05em] leading-relaxed tracking-wide;
+  }
+}
+
