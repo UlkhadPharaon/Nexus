@@ -31,7 +31,7 @@ export default function LandingPage() {
           </h1>
           
           <p className="text-lg md:text-xl text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed font-sans font-light">
-            NexusChat vous permet de concevoir, d'interagir et d'explorer des personnages IA sans limites. 
+            Nexus vous permet de concevoir, d'interagir et d'explorer des personnages IA sans limites. 
             Une immersion totale propulsée par l'intelligence de NVIDIA NIM.
           </p>
           

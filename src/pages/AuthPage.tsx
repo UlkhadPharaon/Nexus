@@ -87,7 +87,7 @@ export default function AuthPage() {
             {isLogin ? 'Bon retour' : 'Créez votre compte'}
           </h2>
           <p className="text-text-secondary mt-2">
-            Rejoignez NexusChat pour créer des IA uniques.
+            Rejoignez Nexus pour créer des IA uniques.
           </p>
         </div>
 

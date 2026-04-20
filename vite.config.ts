@@ -13,8 +13,8 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: 'NexusChat',
-          short_name: 'NexusChat',
+          name: 'Nexus',
+          short_name: 'Nexus',
           theme_color: '#6251EE',
           background_color: '#0A0A0F',
           display: 'standalone',
