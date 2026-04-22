@@ -5,6 +5,7 @@ import { useChatStore } from '../stores/chatStore';
 import { getCharacter, getConversation, subscribeToMessages, addMessage, updateMessage, createConversation, getConversations } from '../services/firestore';
 import { streamChatCompletion } from '../services/aiService';
 import { buildCharacterSystemPrompt, buildContextMessages } from '../utils/promptBuilder';
+import { summarizeConversation } from '../utils/memoryUtils';
 import { Character, Message, Conversation, User as UserType, Persona, Universe, LoreEntry, UniverseRoom } from '../types';
 import { ModelSwitch } from '../components/chat/ModelSwitch';
 import { PersonaSelector } from '../components/chat/PersonaSelector';
@@ -12,7 +13,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft, Send, Sparkles, StopCircle, User as UserIcon, Volume2, Edit2, Heart, Users, FileText, Plus, Map as MapIcon, Loader2, Settings, Globe, Book } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, StopCircle, User as UserIcon, Volume2, Edit2, Heart, Users, FileText, Plus, Map as MapIcon, Loader2, Settings, Globe, Book, Brain } from 'lucide-react';
 import { cleanTextForTTS } from '../utils/ttsUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -45,6 +46,7 @@ export default function ChatPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+  const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [myCharacters, setMyCharacters] = useState<Character[]>([]);
   const [isInviting, setIsInviting] = useState(false);
@@ -96,6 +98,7 @@ export default function ChatPage() {
           const conv = await getConversation(existing.id);
           setConversation(conv);
           setAffinity(conv?.affinity || 0);
+          setLongTermMemory(conv?.longTermMemory || '');
           
           if (conv) {
              // Load linked universe if any
@@ -480,6 +483,18 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
               },
               () => {}
             );
+
+            // GESTION DE LA MÉMOIRE LONG TERME (tous les 10 messages après 20)
+            if (historyForAI.length > 20 && historyForAI.length % 10 === 0) {
+              const messagesToSummarize = messages.slice(-15, -5); // Summarize some past context
+              summarizeConversation(messagesToSummarize, longTermMemory).then(async (newMem) => {
+                if (newMem && newMem !== longTermMemory) {
+                  setLongTermMemory(newMem);
+                  const { updateConversation } = await import('../services/firestore');
+                  await updateConversation(conversationId, { longTermMemory: newMem });
+                }
+              }).catch(e => console.error("Memory error:", e));
+            }
           }
         },
         (error) => {
@@ -769,6 +784,15 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
           )}
 
           <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className={`h-9 w-9 ${longTermMemory ? 'text-primary-400' : 'text-text-muted hover:text-white'}`} 
+              title="Mémoire de la conversation"
+              onClick={() => setShowMemoryModal(true)}
+            >
+              <Brain className="w-4 h-4" />
+            </Button>
             <Button 
               variant="ghost" 
               size="icon" 
@@ -1261,6 +1285,33 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
           </div>
         </div>
       )}
+
+      {/* Memory Modal */}
+      {showMemoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowMemoryModal(false)} />
+          <div className="bg-surface-950 border border-primary-500/30 rounded-lg p-6 max-w-lg w-full relative z-10 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold font-serif flex items-center gap-2">
+                <Brain className="w-5 h-5 text-primary-400" /> Mémoire de l'IA
+              </h3>
+              <button onClick={() => setShowMemoryModal(false)} className="text-text-muted hover:text-white p-1">
+                 <ArrowLeft className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-text-secondary mb-4">
+              Ceci est le résumé cognitif de vos interactions passées. L'IA se base sur ce texte pour maintenir la cohérence au fur et à mesure que la conversation avance.
+            </p>
+            <div className="flex-1 overflow-y-auto mb-4 bg-surface-900 border border-white/5 rounded-sm p-4 font-mono text-sm text-text-muted whitespace-pre-wrap">
+              {longTermMemory || "L'IA n'a pas encore synthétisé de souvenirs à long terme."}
+            </div>
+            <div className="flex justify-end pt-4 border-t border-white/10 shrink-0">
+               <Button variant="outline" onClick={() => setShowMemoryModal(false)}>Fermer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

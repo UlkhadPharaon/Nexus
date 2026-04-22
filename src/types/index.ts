@@ -124,6 +124,7 @@ export interface Conversation {
   modelUsed: 'mistral-small' | 'nemotron-nano';
   backgroundImageUrl?: string; // Conversation specific background override
   affinity?: number; // -100 to 100
+  longTermMemory?: string; // Memory of past interactions
   scenarioId?: string; // Active scenario if any
   personaId?: string; // User persona used in this convo
   universeId?: string; // Linked universe if any
