@@ -28,8 +28,7 @@ export async function streamChatCompletion(
         stream: true,
         ...(modelKey === 'nemotron-nano' ? {
           extra_body: {
-            chat_template_kwargs: { enable_thinking: true },
-            reasoning_budget: 1024
+            chat_template_kwargs: { enable_thinking: false }
           }
         } : {}),
         ...(modelKey === 'mistral-small' ? {
@@ -50,17 +49,23 @@ export async function streamChatCompletion(
     
     const decoder = new TextDecoder('utf-8');
     let fullResponse = '';
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      // Garder la dernière ligne qui pourrait être incomplète
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        
+        if (trimmed.startsWith('data: ')) {
+          const data = trimmed.slice(6).trim();
           if (data === '[DONE]') {
             onComplete(fullResponse);
             return;
@@ -77,7 +82,7 @@ export async function streamChatCompletion(
               }
             }
           } catch {
-            // Ignorer les lignes malformées
+            // Ignorer les lignes malformées qui sont complètes mais invalides
           }
         }
       }
