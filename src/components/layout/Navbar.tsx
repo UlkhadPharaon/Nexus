@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { auth } from '../../config/firebase';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
-import { Sparkles, Compass, LogOut, Shield } from 'lucide-react';
+import { Sparkles, Compass, LogOut, Shield, MessageSquare, Globe } from 'lucide-react';
 
 export function Navbar() {
   const { user } = useAuthStore();
@@ -27,20 +27,21 @@ export function Navbar() {
           {user && (
             <div className="flex items-center gap-1">
               <Link to="/home">
-                <Button variant="ghost" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
-                  <span className="md:hidden flex items-center">Chats</span>
+                <Button variant="ghost" title="Mes Chats" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
+                  <MessageSquare className="w-4 h-4 sm:mr-2" />
                   <span className="hidden md:inline">Mes Chats</span>
                 </Button>
               </Link>
               <Link to="/explore">
-                <Button variant="ghost" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
+                <Button variant="ghost" title="Explorer" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
                   <Compass className="w-4 h-4 sm:mr-2" />
                   <span className="hidden sm:inline">Explorer</span>
                 </Button>
               </Link>
               <Link to="/universe">
-                <Button variant="ghost" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
-                  <span className="hidden sm:inline">Mon Univers</span>
+                <Button variant="ghost" title="Mon Univers" className="h-9 px-2 sm:px-3 flex items-center justify-center bg-surface-800/50 hover:bg-surface-700 border border-white/5 text-text-secondary hover:text-white transition-all">
+                   <Globe className="w-4 h-4 sm:mr-2 text-primary-400" />
+                   <span className="hidden sm:inline">Univers</span>
                 </Button>
               </Link>
             </div>

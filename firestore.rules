@@ -2,38 +2,113 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helpers
+    // -------------------------------------------------------------------------
+    // HELPERS
+    // -------------------------------------------------------------------------
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { return isSignedIn() && request.auth.token.email == 'ulrichtapsoba2009@gmail.com'; }
+    
+    function isOwner(data) {
+      return isSignedIn() && (
+        data.get('userId', '') == request.auth.uid || 
+        data.get('creatorId', '') == request.auth.uid
+      );
+    }
 
-    // Global safety net (deny by default, required by strict rules)
+    function isParticipant(data) {
+      return isSignedIn() && (
+        request.auth.uid == data.get('userId', '') ||
+        (data.get('participantIds', []) is list && request.auth.uid in data.get('participantIds', []))
+      );
+    }
+
+    function canAccessConversation(conversationId) {
+      // Use getCached for efficiency if rules engine supports, or standard get()
+      let docData = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+      return isParticipant(docData) || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // GLOBAL GATE
+    // -------------------------------------------------------------------------
     match /{document=**} { 
       allow read, write: if false; 
     }
 
-    match /admins/{userId} {
-      allow read: if isAdmin();
-    }
+    // -------------------------------------------------------------------------
+    // COLLECTIONS
+    // -------------------------------------------------------------------------
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      // Allow reading profiles for shared context. 
+      // Note: PII should ideally be isolated, but we allow global read as requested for full functionality.
+      allow read, list: if isSignedIn() || isAdmin();
+      allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
     }
     
     match /characters/{characterId} {
-      allow read: if resource.data.isPublic == true || (isSignedIn() && (request.auth.uid == resource.data.creatorId || isAdmin()));
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isAdmin());
+      // Broad read access to support exploration and shared chats
+      allow read, list: if (resource.data.get('isPublic', false) == true) || isSignedIn() || isAdmin();
+      
+      allow create: if isSignedIn() && (request.resource.data.get('creatorId', '') == request.auth.uid || isAdmin());
+      allow update, delete: if isOwner(resource.data) || isAdmin();
+    }
+    
+    match /folders/{folderId} {
+      allow read, list: if isOwner(resource.data) || isAdmin();
+      allow write: if isOwner(resource.data) || isAdmin();
+      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+    }
+    
+    match /personas/{personaId} {
+      allow read, list: if isSignedIn() || isAdmin();
+      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow update, delete: if isOwner(resource.data) || isAdmin();
     }
     
     match /conversations/{conversationId} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow update, delete: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Participants can see their conversations.
+      allow get: if isParticipant(resource.data) || isAdmin();
+      
+      // Query enforcer for list
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+      
+      // Participants can update conversation meta (affinity, list, timestamps)
+      allow update: if isParticipant(resource.data) || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.get('userId', '') == request.auth.uid) || isAdmin();
       
       match /messages/{messageId} {
-        allow read, write: if isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId || isAdmin());
+        allow read: if canAccessConversation(conversationId);
+        
+        allow create: if canAccessConversation(conversationId) && (
+          (request.resource.data.get('role', '') in ['assistant', 'system']) || 
+          (isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid) ||
+          isAdmin()
+        );
+        
+        // Participants can moderate or edit messages in the thread
+        allow update: if canAccessConversation(conversationId);
+        allow delete: if isAdmin() || (isSignedIn() && resource.data.get('userId', '') == request.auth.uid);
       }
+    }
+
+    match /universes/{universeId} {
+      allow read, list: if resource.data.get('isPublic', false) == true || 
+                          isOwner(resource.data) || 
+                          (request.auth.uid in resource.data.get('participantIds', [])) || 
+                          isAdmin();
+      allow create: if isSignedIn() && request.resource.data.get('creatorId', '') == request.auth.uid;
+      allow update, delete: if isOwner(resource.data) || isAdmin();
+    }
+    
+    match /admins/{userId} {
+      allow read: if isAdmin();
     }
   }
 }

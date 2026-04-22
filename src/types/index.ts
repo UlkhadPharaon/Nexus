@@ -8,6 +8,18 @@ export interface UserPreferences {
   elevenlabsApiKey?: string;
 }
 
+export interface Persona {
+  id: string;
+  userId: string;
+  name: string;
+  age: string;
+  appearance: string;
+  mentality: string;
+  background: string;
+  isDefault?: boolean;
+  createdAt: Timestamp;
+}
+
 export interface UserPersona {
   name: string;
   age: string;
@@ -74,11 +86,26 @@ export interface Character {
   isNSFW: boolean;
   stats: CharacterStats;
   voiceId?: string; // TTS voice identifier
+  personaId?: string; // Reference to a template Persona if used
   collectionId?: string; // Folder mapping
   backgroundImageUrl?: string; // Character default background
   lore?: LoreEntry[]; // Quick lore entries
   scenarios?: Scenario[]; // Starter scenarios
   isDeleted?: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface Universe {
+  id: string;
+  creatorId: string;
+  name: string;
+  description: string;
+  rules: string;
+  backgroundImageUrl?: string;
+  participantIds: string[]; // Users invited
+  characterIds: string[];   // Characters in the universe
+  isPublic: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -98,15 +125,33 @@ export interface Conversation {
   backgroundImageUrl?: string; // Conversation specific background override
   affinity?: number; // -100 to 100
   scenarioId?: string; // Active scenario if any
+  personaId?: string; // User persona used in this convo
+  universeId?: string; // Linked universe if any
+  currentRoomId?: string; // Active location context
+  isUniverseChat?: boolean; // Visual style flag
   isDeleted?: boolean;
   createdAt: Timestamp;
 }
 
 export interface LoreEntry {
   id: string;
+  universeId?: string;
+  characterId?: string;
   title: string;
   content: string;
+  category?: 'general' | 'place' | 'person' | 'object' | 'history' | 'magic';
   keywords: string[]; // Triggers for the AI
+  imageUrl?: string;
+  createdAt?: Timestamp;
+}
+
+export interface UniverseRoom {
+  id: string;
+  universeId: string;
+  name: string;
+  description: string;
+  backgroundImageUrl: string;
+  createdAt: Timestamp;
 }
 
 export interface Scenario {

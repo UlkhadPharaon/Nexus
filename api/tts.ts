@@ -1,20 +1,24 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Readable } from 'stream';
+export const config = { runtime: 'edge' };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+  
+  const apiKey = req.headers.get('x-custom-elevenlabs-key') || process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "ElevenLabs API key not configured" }), { 
+      status: 401, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 
   try {
-    const apiKey = (req.headers['x-custom-elevenlabs-key'] as string) || process.env.ELEVENLABS_API_KEY;
-    if (!apiKey) {
-      return res.status(401).json({ error: "ElevenLabs API key not configured" });
-    }
-
-    const { text, voiceId } = req.body;
+    const body = await req.json();
+    const { text, voiceId } = body;
     if (!text || !voiceId) {
-      return res.status(400).json({ error: "Missing text or voiceId" });
+      return new Response(JSON.stringify({ error: "Missing text or voiceId" }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
@@ -30,20 +34,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ error: errorText });
-    }
-
-    res.setHeader('Content-Type', 'audio/mpeg');
-    if (response.body) {
-      // @ts-ignore
-      Readable.fromWeb(response.body).pipe(res);
-    } else {
-      res.end();
-    }
-  } catch (error) {
-    console.error("TTS API Error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        'Content-Type': response.headers.get('Content-Type') || 'audio/mpeg'
+      }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: "Internal server error", details: error.message }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 }

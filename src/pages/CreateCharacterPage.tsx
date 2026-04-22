@@ -14,7 +14,9 @@ import { CheckCircle2, ChevronRight, ImagePlus, User, Brain, Wand2, Rocket, Mic,
 import toast from 'react-hot-toast';
 import { streamChatCompletion } from '../services/aiService';
 import { getVoices, Voice, cleanTextForTTS } from '../utils/ttsUtils';
-import { LoreEntry, Scenario } from '../types';
+import { LoreEntry, Scenario, Persona } from '../types';
+import { PersonaSelector } from '../components/chat/PersonaSelector';
+import { GoogleGenAI } from "@google/genai";
 
 export default function CreateCharacterPage() {
   const { user, setUser } = useAuthStore();
@@ -29,6 +31,7 @@ export default function CreateCharacterPage() {
   
   const [previewDialogue, setPreviewDialogue] = useState<string | null>(null);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [showPersonaSelector, setShowPersonaSelector] = useState(false);
 
   // Form State
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -41,6 +44,7 @@ export default function CreateCharacterPage() {
     category: CATEGORIES[0],
     tags: '18+',
     avatarColor: COLORS[0],
+    personaId: '',
     
     personality: '',
     backstory: '',
@@ -109,6 +113,7 @@ export default function CreateCharacterPage() {
             category: char.category || CATEGORIES[0],
             tags: char.tags?.join(', ') || '',
             avatarColor: char.avatarColor || COLORS[0],
+            personaId: char.personaId || '',
             personality: persona.personality || '',
             backstory: persona.backstory || '',
             universe: persona.universe || '',
@@ -140,6 +145,18 @@ export default function CreateCharacterPage() {
 
   const updateForm = (key: keyof typeof formData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handlePersonaSelect = (persona: Persona) => {
+    setFormData(prev => ({
+      ...prev,
+      personaId: persona.id,
+      name: prev.name || persona.name,
+      personality: persona.mentality,
+      backstory: persona.background
+    }));
+    setShowPersonaSelector(false);
+    toast.success(`Persona "${persona.name}" appliqué !`);
   };
 
   const generateField = async (field: keyof typeof formData, instructions: string) => {
@@ -344,12 +361,30 @@ Respond exactly as the character would in French. Follow the speaking style stri
     if (!user) return;
     setIsGeneratingUserAvatar(true);
     try {
-      const prompt = `A professional artistic portrait of a ${user.displayName || 'fantasy persona'} character, matching the style of ${formData.name || 'this character'}, highly detailed, cinematic lighting, eye-level shot, artistic style, 4k.`;
+      // Use Gemini to generate a fitting prompt for the user's persona based on the current character's world
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const expansionResponse = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Génère un prompt de génération d'image pour l'avatar d'un utilisateur qui va interagir dans l'univers suivant :
+        Univers : ${formData.universe}
+        Ambiance : ${formData.tagline}
+        Style du personnage principal : ${formData.name}
+
+        Directives :
+        - Le personnage doit être un avatar (persona) pour l'utilisateur "${user.displayName || 'Joueur'}".
+        - Style : Réalisme cinématographique ou le style de l'univers mentionné.
+        - Détails : Décris un portrait professionnel, une tenue adaptée à l'univers, un éclairage dramatique.
+        - Langue : Prompt en ANGLAIS.
+        - Sortie : UNIQUEMENT le texte du prompt.`,
+      });
+
+      const expandedPrompt = expansionResponse.text?.trim() || `A professional artistic portrait of a ${user.displayName || 'fantasy persona'} character, matching the style of ${formData.name || 'this character'}, highly detailed, cinematic lighting, 4k.`;
+
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
+          prompt: expandedPrompt,
           width: 1024,
           height: 1024,
           seed: Math.floor(Math.random() * 1000000),
@@ -406,12 +441,33 @@ Respond exactly as the character would in French. Follow the speaking style stri
     }
     setIsGeneratingAvatar(true);
     try {
-      const prompt = `A detailed professional portrait of ${formData.name}, ${formData.tagline}. Genre: ${formData.category}. ${formData.personality.substring(0, 100)}. Cinematic lighting, highly detailed, eye-level shot, artistic style, 4k.`;
+      // 1. Expand the prompt using Gemini for better quality and alignment
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const expansionResponse = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Génère un prompt de génération d'image ultra-détaillé et professionnel pour le personnage suivant :
+        Nom : ${formData.name}
+        Titre : ${formData.tagline}
+        Catégorie : ${formData.category}
+        Personnalité : ${formData.personality}
+        Histoire : ${formData.backstory}
+        Univers : ${formData.universe}
+
+        Directives pour le prompt :
+        - Style : Réalisme cinématographique de haute qualité (sauf si la catégorie suggère explicitement un style artistique comme l'Anime).
+        - Détails : Décris précisément l'apparence physique, l'expression faciale reflétant le mood, la tenue vestimentaire et l'arrière-plan immersif lié à l'univers.
+        - Technique : Utilise des termes de photographie (ex: 85mm portrait, depth of field, sharp focus, 8k, professional lighting).
+        - Langue : Le prompt de sortie DOIT être en ANGLAIS.
+        - Sortie : Donne UNIQUEMENT le texte du prompt, sans explications ni guillemets.`,
+      });
+
+      const expandedPrompt = expansionResponse.text?.trim() || `A detailed professional portrait of ${formData.name}, ${formData.tagline}. Genre: ${formData.category}. ${formData.personality.substring(0, 100)}. Cinematic lighting, highly detailed, eye-level shot, artistic style, 4k.`;
+
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
+          prompt: expandedPrompt,
           width: 1024,
           height: 1024,
           seed: Math.floor(Math.random() * 1000000),
@@ -555,6 +611,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
         isPublic: formData.isPublic,
         isNSFW: formData.isNSFW,
         voiceId: formData.voiceId || undefined,
+        personaId: formData.personaId || undefined,
         lore: formData.lore,
         scenarios: formData.scenarios,
         persona: {
@@ -731,6 +788,23 @@ Respond exactly as the character would in French. Follow the speaking style stri
           {/* STEP 2: PERSONALITY */}
           {step === 2 && (
             <div className="space-y-6 animate-fade-in">
+              <div className="p-4 bg-surface-900 border border-white/5 rounded-xl mb-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-500/10 flex items-center justify-center">
+                       <User className="w-5 h-5 text-primary-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold">Modèle de Persona</h3>
+                      <p className="text-[10px] text-text-muted">Utilisez un profil prédéfini comme base pour ce personnage.</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowPersonaSelector(true)}>
+                    {formData.personaId ? "Changer de Persona" : "Choisir un Persona"}
+                  </Button>
+                </div>
+              </div>
+
               <Textarea 
                 label="Personnalité *"
                 placeholder="Décrivez les traits de caractère, ses opinions, sa façon de penser..."
@@ -1018,6 +1092,14 @@ Respond exactly as the character would in French. Follow the speaking style stri
           </div>
         </div>
       </div>
+
+      {showPersonaSelector && (
+        <PersonaSelector 
+          onSelect={handlePersonaSelect}
+          onCancel={() => setShowPersonaSelector(false)}
+          currentPersonaId={formData.personaId}
+        />
+      )}
     </PageWrapper>
   );
 }

@@ -5,13 +5,14 @@ import { useChatStore } from '../stores/chatStore';
 import { getCharacter, getConversation, subscribeToMessages, addMessage, updateMessage, createConversation, getConversations } from '../services/firestore';
 import { streamChatCompletion } from '../services/aiService';
 import { buildCharacterSystemPrompt, buildContextMessages } from '../utils/promptBuilder';
-import { Character, Message, Conversation } from '../types';
+import { Character, Message, Conversation, User as UserType, Persona, Universe, LoreEntry, UniverseRoom } from '../types';
 import { ModelSwitch } from '../components/chat/ModelSwitch';
+import { PersonaSelector } from '../components/chat/PersonaSelector';
 import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft, Send, Sparkles, StopCircle, User, Volume2, Edit2, Heart, Users, FileText, Plus, Map as MapIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, StopCircle, User as UserIcon, Volume2, Edit2, Heart, Users, FileText, Plus, Map as MapIcon, Loader2, Settings, Globe, Book } from 'lucide-react';
 import { cleanTextForTTS } from '../utils/ttsUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -27,12 +28,24 @@ export default function ChatPage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [universe, setUniverse] = useState<Universe | null>(null);
+  const [loreEntries, setLoreEntries] = useState<LoreEntry[]>([]);
+  const [rooms, setRooms] = useState<UniverseRoom[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<UniverseRoom | null>(null);
+  const [showCodex, setShowCodex] = useState(false);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [showPersonaSelector, setShowPersonaSelector] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [myCharacters, setMyCharacters] = useState<Character[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
@@ -85,11 +98,37 @@ export default function ChatPage() {
           setAffinity(conv?.affinity || 0);
           
           if (conv) {
+             // Load linked universe if any
+             if (conv.universeId) {
+                const { getUniverse, getLoreEntries, getUniverseRooms } = await import('../services/firestore');
+                const uni = await getUniverse(conv.universeId);
+                if (uni) {
+                  setUniverse(uni);
+                  const [lore, rms] = await Promise.all([
+                    getLoreEntries(uni.id),
+                    getUniverseRooms(uni.id)
+                  ]);
+                  setLoreEntries(lore);
+                  setRooms(rms);
+                  if (conv.currentRoomId) {
+                    const room = rms.find(r => r.id === conv.currentRoomId);
+                    if (room) setCurrentRoom(room);
+                  }
+                }
+             }
+
+             // Load assigned persona if any
+             if (conv.personaId) {
+                const { getPersona } = await import('../services/firestore');
+                const persona = await getPersona(conv.personaId);
+                if (persona) setSelectedPersona(persona);
+             }
+
              // Load participants
              if (conv.participantIds) {
                 const { getUserProfile } = await import('../services/firestore');
                 const profiles = await Promise.all(conv.participantIds.map(uid => getUserProfile(uid)));
-                setParticipantUsers(profiles.filter(u => u !== null) as User[]);
+                setParticipantUsers(profiles.filter(u => u !== null) as UserType[]);
              }
           }
           
@@ -99,12 +138,8 @@ export default function ChatPage() {
           setCharacters(loadedChars.filter(c => c !== null) as Character[]);
         } else {
           setCharacters([char]);
-          // If the character has scenarios, show picker first
-          if (char.scenarios && char.scenarios.length > 0) {
-            setShowScenarioPicker(true);
-          } else {
-            await startNewConversation(char, char.persona.firstMessage);
-          }
+          // Show Persona Selector before starting
+          setShowPersonaSelector(true);
         }
       } catch (err) {
         console.error(err);
@@ -127,7 +162,7 @@ export default function ChatPage() {
     return () => unsub();
   }, [conversationId]);
 
-  async function startNewConversation(char: Character, firstMsg: string, scenarioId?: string) {
+  async function startNewConversation(char: Character, firstMsg: string, scenarioId?: string, personaId?: string) {
     if (!user) return;
     const newConvId = await createConversation({
       userId: user.uid,
@@ -139,7 +174,9 @@ export default function ChatPage() {
       modelUsed: currentModel,
       lastMessage: firstMsg.substring(0, 50),
       scenarioId,
-      affinity: 0
+      personaId,
+      affinity: 0,
+      participantIds: [user.uid]
     });
     setConversationId(newConvId);
     
@@ -150,10 +187,40 @@ export default function ChatPage() {
     });
     setAffinity(0);
     setShowScenarioPicker(false);
+    setShowPersonaSelector(false);
   }
 
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [participantUsers, setParticipantUsers] = useState<User[]>([]);
+  const handlePersonaSelect = async (persona: Persona) => {
+    setSelectedPersona(persona);
+    if (!conversationId) {
+      // Starting new chat
+      if (character) {
+        if (character.scenarios && character.scenarios.length > 0) {
+          setShowScenarioPicker(true);
+          setShowPersonaSelector(false);
+        } else {
+          await startNewConversation(character, character.persona.firstMessage, undefined, persona.id);
+        }
+      }
+    } else {
+      // Switching persona in existing chat
+      const { updateConversation } = await import('../services/firestore');
+      await updateConversation(conversationId, { personaId: persona.id });
+      setConversation(prev => prev ? { ...prev, personaId: persona.id } : null);
+      setShowPersonaSelector(false);
+      toast.success(`Vous interagissez maintenant en tant que ${persona.name}`);
+      
+      // Optionally add a system message
+      await addMessage(conversationId, {
+        role: 'system',
+        content: `L'utilisateur a changé de persona. Il est désormais perçu comme : ${persona.name}.`,
+        model: currentModel
+      });
+    }
+  };
+
+  const [allUsers, setAllUsers] = useState<UserType[]>([]);
+  const [participantUsers, setParticipantUsers] = useState<UserType[]>([]);
 
   const toggleInviteModal = async () => {
     if (!user) return;
@@ -161,17 +228,28 @@ export default function ChatPage() {
     if (!showInviteModal) {
       setIsInviting(true);
       try {
-        const { getUserCharacters, getAllUsers } = await import('../services/firestore');
-        const mine = await getUserCharacters(user.uid);
+        const { getPublicCharacters, getAllUsers } = await import('../services/firestore');
+        const publicChars = await getPublicCharacters();
         const users = await getAllUsers();
-        setMyCharacters(mine.filter(m => !characters.find(c => c.id === m.id)));
+        setMyCharacters(publicChars);
         setAllUsers(users.filter(u => u.uid !== user?.uid && !conversation?.participantIds?.includes(u.uid)));
       } finally { setIsInviting(false); }
     }
   };
 
+  // Lock scroll when modals are open
+  useEffect(() => {
+    const isAnyModalOpen = showInviteModal || showParticipantsModal || showPersonaSelector || showNsfwPrompt || showScenarioPicker;
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [showInviteModal, showParticipantsModal, showPersonaSelector, showNsfwPrompt, showScenarioPicker]);
+
   // Update inviteUser
-  const inviteUser = async (userToInvite: User) => {
+  const inviteUser = async (userToInvite: UserType) => {
     if (!conversationId || !conversation) return;
     
     const { addParticipantToConversation, addMessage } = await import('../services/firestore');
@@ -188,6 +266,23 @@ export default function ChatPage() {
     });
     
     toast.success(`${userToInvite.displayName} a été invité !`);
+  };
+
+  const switchRoom = async (room: UniverseRoom) => {
+    if (!conversationId) return;
+    setCurrentRoom(room);
+    setShowRoomPicker(false);
+    
+    const { updateConversation, addMessage } = await import('../services/firestore');
+    await updateConversation(conversationId, { currentRoomId: room.id });
+    
+    await addMessage(conversationId, {
+      role: 'system',
+      content: `L'action se déplace vers : **${room.name}**. ${room.description}`,
+      model: currentModel
+    });
+    
+    toast.success(`Déplacement vers ${room.name}`);
   };
 
 
@@ -239,9 +334,14 @@ export default function ChatPage() {
   const nsfwKeywords = ['hot', 'sexe', 'nu', 'nsfw', 'câlin', 'sensuel'];
   
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isGenerating || !character || !conversationId) return;
+    if (isGenerating || !character || !conversationId) return;
 
-    const userText = inputMessage.trim();
+    let userText = inputMessage.trim();
+
+    // If empty or just space, set a trigger message for the AI
+    if (userText === '') {
+      userText = "*L'utilisateur ne sait pas quoi dire, il laisse le silence s'installer...*";
+    }
     
     // Check if message is NSFW and character is not
     if (!character.isNSFW && nsfwKeywords.some(keyword => userText.toLowerCase().includes(keyword))) {
@@ -288,17 +388,53 @@ export default function ChatPage() {
     setAbortController(controller);
     
     try {
-      const historyForAI = messages.map(m => ({ role: m.role, content: m.content }));
+      const historyForAI = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
       historyForAI.push({ role: 'user', content: userText });
       
       // Include current user if they are not already in participantUsers
       const participantsWithUser = [...participantUsers];
       if (user && !participantsWithUser.some(p => p.uid === user.uid)) {
-         participantsWithUser.push(user as User);
+         participantsWithUser.push(user as UserType);
       }
 
-      const sysPrompt = buildCharacterSystemPrompt(character, participantsWithUser.map(p => p.persona || { name: p.displayName, age: 'Inconnu', appearance: 'Inconnue', mentality: 'Standard', background: 'Inconnu' })) + activeLoreExtras + 
-        ` [AFFINITÉ ACTUELLE: ${affinity}/100. Ton attitude doit refléter ce score : plus c'est bas, plus tu es distant/hostile. Plus c'est haut, plus tu es chaleureux/amical.]`;
+      const personasForPrompt = participantsWithUser.map(p => {
+        if (user && p.uid === user.uid && selectedPersona) {
+          return {
+            name: selectedPersona.name,
+            age: selectedPersona.age,
+            appearance: selectedPersona.appearance,
+            mentality: selectedPersona.mentality,
+            background: selectedPersona.background
+          };
+        }
+        return p.persona || { name: p.displayName, age: 'Inconnu', appearance: 'Inconnue', mentality: 'Standard', background: 'Inconnu' };
+      });
+
+    // Detect mentioned character for focal response
+    const mentionedChar = characters.find(c => userText.includes(`@${c.name}`));
+    const mentionedUser = participantUsers.find(u => userText.includes(`@${u.displayName}`));
+    
+    let focalInstruction = mentionedChar 
+      ? `\n\n[INSTRUCTION FOCALE] : L'utilisateur s'adresse spécifiquement à **${mentionedChar.name}**. Assurez-vous que ce personnage réagisse en premier et soit au centre de la réponse.` 
+      : (characters.length > 1 ? `\n\n[CONSEIL] : Puisqu'il s'agit d'un groupe, n'hésitez pas à faire participer plusieurs personnages si cela fait sens.` : '');
+
+    if (mentionedUser) {
+      focalInstruction += `\n\n[AVERTISSEMENT] : L'utilisateur @${mentionedUser.displayName} est un HUMAIN. Vous ne devez JAMAIS répondre à sa place. Laissez-le s'exprimer de lui-même. Vous ne pouvez que réagir à sa mention si l'un de vos personnages a une raison de le faire.`;
+    }
+
+    const universePrompt = universe ? { name: universe.name, rules: universe.rules } : undefined;
+    const roomPrompt = currentRoom ? { name: currentRoom.name, description: currentRoom.description } : undefined;
+    
+    // Filter relevant lore based on user text (simple keyword matching)
+    const relevantLore = loreEntries.filter(entry => 
+       entry.keywords.some(k => userText.toLowerCase().includes(k.toLowerCase())) ||
+       userText.toLowerCase().includes(entry.title.toLowerCase())
+    );
+
+    const sysPrompt = buildCharacterSystemPrompt(characters, personasForPrompt, universePrompt, roomPrompt, relevantLore) + activeLoreExtras + focalInstruction +
+      ` [AFFINITÉ ACTUELLE: ${affinity}/100. Ton attitude doit refléter ce score : plus c'est bas, plus tu es distant/hostile. Plus c'est haut, plus tu es chaleureux/amical.]`;
       
       const apiMsgs = buildContextMessages(sysPrompt, historyForAI, 20, longTermMemory);
 
@@ -365,7 +501,83 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInputMessage(value);
+    
+    // Auto-resize
+    const target = e.target;
+    target.style.height = 'auto';
+    target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+
+    // Mention detection
+    const cursorPosition = target.selectionStart;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtSymbol !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+      // Ensure there's no space between @ and the cursor, or it's at the start/after space
+      if (!textAfterAt.includes(' ') && (lastAtSymbol === 0 || textBeforeCursor[lastAtSymbol - 1] === ' ')) {
+        setShowMentions(true);
+        setMentionFilter(textAfterAt.toLowerCase());
+        setMentionIndex(0);
+      } else {
+        setShowMentions(false);
+      }
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const insertMention = (name: string) => {
+    if (!textareaRef.current) return;
+    const cursorPosition = textareaRef.current.selectionStart;
+    const textBeforeCursor = inputMessage.substring(0, cursorPosition);
+    const textAfterCursor = inputMessage.substring(cursorPosition);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    const newText = textBeforeCursor.substring(0, lastAtSymbol) + '@' + name + ' ' + textAfterCursor;
+    setInputMessage(newText);
+    setShowMentions(false);
+    
+    // Re-focus and set cursor position after mention
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newPos = lastAtSymbol + name.length + 2; // +1 for @, +1 for space
+        textareaRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
+  const filteredParticipants = [
+    ...characters.map(c => ({ id: c.id, name: c.name, type: 'character' as const, avatar: c.avatarUrl, color: c.avatarColor })),
+    ...(participantUsers || []).map(u => ({ id: u.uid, name: u.displayName, type: 'user' as const, avatar: u.photoURL, color: 'text-text-muted' }))
+  ].filter(p => p.name.toLowerCase().includes(mentionFilter));
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showMentions && filteredParticipants.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex(prev => (prev + 1) % filteredParticipants.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex(prev => (prev - 1 + filteredParticipants.length) % filteredParticipants.length);
+        return;
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filteredParticipants[mentionIndex]) {
+          insertMention(filteredParticipants[mentionIndex].name);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        setShowMentions(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -480,62 +692,150 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
 
   return (
     <div 
-      className="flex flex-col h-[calc(100vh-64px)] bg-surface-950 bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: user?.preferences?.chatBackgroundImage ? `url(${user.preferences.chatBackgroundImage})` : (conversation?.backgroundImageUrl ? `url(${conversation.backgroundImageUrl})` : 'none') }}
+      className={`flex flex-col h-[calc(100vh-64px)] h-[calc(100dvh-64px)] bg-surface-950 bg-cover bg-center bg-no-repeat transition-all duration-700 ${universe ? 'bg-blend-overlay bg-indigo-900/10' : ''}`}
+      style={{ 
+        backgroundImage: `url(${currentRoom?.backgroundImageUrl || universe?.backgroundImageUrl || user?.preferences?.chatBackgroundImage || conversation?.backgroundImageUrl || character.backgroundImageUrl || character.avatarUrl})`
+      }}
     >
+      {/* Cinematic Overlays */}
+      <div className={`fixed inset-0 z-0 ${universe ? 'bg-indigo-950/20 mix-blend-overlay' : 'bg-surface-950/20'} pointer-events-none`} />
+
       {/* Header */}
-      <header className="flex-shrink-0 h-16 border-b border-white/5 bg-surface-900/80 backdrop-blur flex items-center justify-between px-4 z-10 w-full relative">
+      <header className={`flex-shrink-0 h-16 border-b border-white/5 ${universe ? 'bg-indigo-950/40' : 'bg-surface-900/80'} backdrop-blur-md flex items-center justify-between px-4 z-10 w-full relative`}>
         <div className="flex items-center gap-3">
           <Button variant="ghost" onClick={() => navigate('/home')} className="md:hidden shrink-0 w-9 h-9 p-0 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
-          <Avatar 
-            src={character.avatarUrl} 
-            alt={character.name} 
-            fallbackColor={character.avatarColor}
-            size="sm" 
-          />
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-sm">{character.name}</h2>
-              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-red-500/10 rounded-full border border-red-500/20">
-                <Heart className={`w-2.5 h-2.5 ${affinity > 0 ? 'fill-red-500 text-red-500' : 'text-text-muted'}`} />
-                <span className="text-[9px] font-bold text-red-500">{affinity}%</span>
-              </div>
+          
+          <div className="flex -space-x-4 overflow-hidden items-center group cursor-pointer" onClick={() => setShowParticipantsModal(true)}>
+            {characters.slice(0, 3).map((c, i) => (
+              <Avatar 
+                key={c.id}
+                src={c.avatarUrl} 
+                alt={c.name} 
+                fallbackColor={c.avatarColor}
+                size="sm" 
+                className={`border-2 border-surface-900 ring-2 ring-transparent z-[${i}] transition-transform group-hover:scale-110`}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 truncate">
+              <h2 className="font-serif font-bold text-xs sm:text-sm truncate uppercase tracking-tighter">
+                {universe ? (
+                   <span className="text-indigo-300 flex items-center gap-2">
+                     <Globe className="w-3 h-3" />
+                     {universe.name}
+                   </span>
+                ) : (
+                  characters.length > 1 
+                    ? `${characters[0].name} & Co`
+                    : characters[0]?.name || 'Nexus'
+                )}
+              </h2>
+              {currentRoom && (
+                <Badge variant="outline" className="text-[8px] py-0 border-indigo-500/30 text-indigo-100 bg-indigo-500/20 rounded-full sm:flex hidden">
+                   {currentRoom.name}
+                </Badge>
+              )}
             </div>
-            <Badge variant="outline" className="text-[10px] py-0">{character.category}</Badge>
+            {universe && <span className="text-[9px] text-indigo-200/50 uppercase tracking-[0.2em] truncate hidden sm:block">{currentRoom?.name || 'ESPACE COMMUN'}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-9 w-9 text-text-muted" 
-            title="Inviter des personnages"
-            onClick={toggleInviteModal}
-          >
-            <Users className="w-4 h-4" />
-          </Button>
-          <ModelSwitch />
-          {user?.uid === character.creatorId && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(`/edit/${character.id}`)}
-              title="Modifier ce personnage"
-              className="hidden sm:flex text-text-muted hover:text-text-primary"
-            >
-              Éditer
-            </Button>
+
+        <div className="flex items-center gap-1 sm:gap-2">
+          {universe && (
+            <div className="flex items-center mr-2 border-r border-white/10 pr-2 gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-indigo-300 hover:text-white h-9 w-9" 
+                title="Codex de l'Univers"
+                onClick={() => setShowCodex(true)}
+              >
+                <Book className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-indigo-300 hover:text-white h-9 w-9" 
+                title="Lieux de l'Univers"
+                onClick={() => setShowRoomPicker(true)}
+              >
+                <MapIcon className="w-4 h-4" />
+              </Button>
+            </div>
           )}
+
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-text-muted h-9 w-9" 
+              title="Persona"
+              onClick={() => setShowPersonaSelector(true)}
+            >
+              <UserIcon className="w-4 h-4" />
+            </Button>
+
+            <div className="hidden sm:flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-text-muted h-9 w-9" 
+                title="Inviter"
+                onClick={toggleInviteModal}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+              
+              <div className="shrink-0 ml-1">
+                <ModelSwitch />
+              </div>
+
+              {user?.uid === character.creatorId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(`/edit/${character.id}`)}
+                  title="Modifier ce personnage"
+                  className="text-text-muted hover:text-text-primary h-9 w-9"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
+      {/* Mobile-only sub-header for Model & Quick Actions */}
+      <div className="sm:hidden flex-shrink-0 bg-surface-900/50 backdrop-blur-sm border-b border-white/5 px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto scrollbar-hide">
+        <ModelSwitch />
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="shrink-0 h-8 text-[10px] px-2 py-0"
+          onClick={toggleInviteModal}
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Inviter
+        </Button>
+      </div>
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth ${universe ? 'universe-chat-bg' : ''}`}>
         <div className="max-w-3xl mx-auto w-full space-y-6 flex flex-col">
-          <div className="text-center my-8 text-text-muted text-xs">
-            Début de la conversation avec {character.name}
+          {universe && (
+            <div className="text-center my-4 space-y-2 translate-y-4">
+              <h2 className="text-2xl font-serif font-bold text-indigo-300 uppercase tracking-[0.2em]">{universe.name}</h2>
+              <p className="text-[10px] text-indigo-200/50 uppercase tracking-widest px-12 leading-relaxed">{universe.description}</p>
+              <div className="h-px w-24 bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent mx-auto mt-4"></div>
+            </div>
+          )}
+          <div className={`text-center my-8 text-text-muted text-xs ${universe ? 'universe-special-text' : ''}`}>
+            {universe ? 'Lobby d\'Univers - Immersion Actve' : `Discussion de groupe avec ${characters.map(c => c.name).join(', ')}`}
           </div>
           
           <AnimatePresence initial={false}>
@@ -551,10 +851,16 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                 );
               }
 
-              const senderName = isUser ? (msg.userName || 'Utilisateur') : character.name;
-              const senderAvatar = isUser ? null : character.avatarUrl; // Use character avatar for AI
-              const senderColor = isUser ? 'text-text-muted' : character.avatarColor;
+              const isMulti = characters.length > 1;
+              const senderName = isUser ? (msg.userName || 'Utilisateur') : (isMulti ? 'Nexus / Groupe' : character.name);
+              const senderAvatar = isUser ? null : (isMulti ? null : character.avatarUrl); // Neutral avatar/icon for group
+              const senderColor = isUser ? 'text-text-muted' : (isMulti ? 'text-primary-400' : character.avatarColor);
               
+              const isUniverse = !!universe;
+              const messageClass = isUser 
+                ? (isUniverse ? 'universe-message-user' : 'message-user') 
+                : (isUniverse ? 'universe-message-character' : 'message-character');
+
               return (
                 <motion.div
                   key={msg.id}
@@ -563,11 +869,17 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                   className={`flex gap-3 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
                   {!isUser && (
-                    <Avatar src={senderAvatar} fallbackColor={senderColor} size="sm" alt={senderName} className="mt-1" />
+                    isMulti ? (
+                      <div className={`w-9 h-9 rounded-sm flex items-center justify-center mt-1 shrink-0 ${isUniverse ? 'bg-indigo-900/50 border-indigo-500/30 shadow-lg shadow-indigo-500/20' : 'bg-surface-800 border-white/5'}`}>
+                        <Users className={`w-5 h-5 ${isUniverse ? 'text-indigo-300' : 'text-primary-400'}`} />
+                      </div>
+                    ) : (
+                      <Avatar src={senderAvatar} fallbackColor={senderColor} size="sm" alt={senderName} className="mt-1" />
+                    )
                   )}
                   <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
                     <span className="text-[10px] text-text-muted mb-0.5 px-1">{senderName}</span>
-                    <div className={`text-sm leading-relaxed ${isUser ? 'message-user' : 'message-character'} flex items-start sm:items-center gap-2 w-full`}>
+                    <div className={`text-sm leading-relaxed ${messageClass} flex items-start sm:items-center gap-2 w-full`}>
                       <div className="markdown-body flex-1 min-w-0 overflow-hidden break-words">
                         {editingMessageId === msg.id ? (
                           <textarea
@@ -614,8 +926,15 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                 animate={{ opacity: 1, y: 0 }}
                 className="flex gap-3 w-full justify-start"
               >
-                <Avatar src={character.avatarUrl} fallbackColor={character.avatarColor} size="sm" alt={character.name} className="mt-1" />
+                {characters.length > 1 ? (
+                  <div className="w-9 h-9 rounded-sm bg-surface-800 border border-white/5 flex items-center justify-center mt-1 shrink-0">
+                    <Users className="w-5 h-5 text-primary-400" />
+                  </div>
+                ) : (
+                  <Avatar src={character.avatarUrl} fallbackColor={character.avatarColor} size="sm" alt={character.name} className="mt-1" />
+                )}
                 <div className="flex flex-col items-start max-w-[85%]">
+                  <span className="text-[10px] text-text-muted mb-0.5 px-1">{characters.length > 1 ? 'Nexus / Groupe' : character.name}</span>
                   <div className="text-sm leading-relaxed message-character">
                     <div className="markdown-body">
                       <ReactMarkdown>{streamingText}</ReactMarkdown>
@@ -628,12 +947,21 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
 
             {isGenerating && !streamingText && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 w-full justify-start">
-                <Avatar src={character.avatarUrl} fallbackColor={character.avatarColor} size="sm" alt={character.name} />
-                <div className="message-character flex items-center h-10 px-4">
-                  <div className="flex space-x-1">
-                    <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                    <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                    <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce"></div>
+                {characters.length > 1 ? (
+                  <div className="w-9 h-9 rounded-sm bg-surface-800 border border-white/5 flex items-center justify-center mt-1 shrink-0">
+                    <Users className="w-5 h-5 text-primary-400" />
+                  </div>
+                ) : (
+                  <Avatar src={character.avatarUrl} fallbackColor={character.avatarColor} size="sm" alt={character.name} className="mt-1" />
+                )}
+                <div className="flex flex-col items-start">
+                  <span className="text-[10px] text-text-muted mb-0.5 px-1">{characters.length > 1 ? 'Nexus / Groupe' : character.name}</span>
+                  <div className="message-character flex items-center h-10 px-4 mt-1">
+                    <div className="flex space-x-1">
+                      <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce"></div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -646,12 +974,39 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
       {/* Input area */}
       <div className="flex-shrink-0 px-4 py-4 bg-surface-950/80 backdrop-blur border-t border-white/5 relative z-10 w-full">
           <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-surface-900 border border-white/5 rounded-sm p-2 focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/20 transition-all shadow-inner">
+          
+          {/* Mention Dropdown */}
+          {showMentions && filteredParticipants.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface-900 border border-white/10 rounded-sm shadow-2xl overflow-hidden z-50">
+              <div className="p-2 border-b border-white/5 bg-surface-800 flex items-center justify-between">
+                <span className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Mentionner...</span>
+                <span className="text-[9px] text-text-muted">↑↓ Naviguer • Entrée Choisir</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredParticipants.map((p, i) => (
+                  <button
+                    key={`${p.type}-${p.id}`}
+                    className={`w-full flex items-center gap-2 p-2 hover:bg-primary-500/10 transition-colors text-left ${i === mentionIndex ? 'bg-primary-500/20' : ''}`}
+                    onClick={() => insertMention(p.name)}
+                    onMouseEnter={() => setMentionIndex(i)}
+                  >
+                    <Avatar src={p.avatar} fallbackColor={p.color} size="sm" alt={p.name} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-white truncate">{p.name}</div>
+                      <div className="text-[10px] text-text-muted uppercase italic">{p.type === 'character' ? 'Perso' : 'Humain'}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={`Écrire à ${character.name}...`}
+            placeholder={characters.length > 1 ? "Mentionnez quelqu'un avec @..." : `Écrire à ${character?.name || '...'}`}
             className="flex-1 max-h-32 min-h-[44px] bg-transparent text-sm font-sans resize-none outline-none py-3 px-3 text-white placeholder-text-muted scrollbar-hide"
             disabled={isGenerating}
             rows={1}
@@ -665,7 +1020,6 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
               size="icon" 
               className="h-[44px] w-[44px] shrink-0 rounded-sm bg-primary-600 hover:bg-primary-500 text-surface-950 transition-colors flex items-center justify-center p-0"
               onClick={handleSendMessage}
-              disabled={!inputMessage.trim()}
             >
               <Send className="w-4 h-4 m-0 ml-0.5" />
             </Button>
@@ -725,6 +1079,54 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
         </div>
       )}
 
+      {/* Persona Selector Modal */}
+      {showPersonaSelector && (
+        <PersonaSelector 
+            onSelect={handlePersonaSelect}
+            onCancel={() => {
+                if (!conversationId) navigate('/home');
+                else setShowPersonaSelector(false);
+            }}
+        />
+      )}
+
+      {showParticipantsModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-900 border border-white/10 rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-4">Participants</h3>
+            <div className="space-y-4">
+                <div>
+                   <h4 className="text-xs font-bold text-text-muted mb-2">Personnages ({characters.length})</h4>
+                   <div className="space-y-2">
+                      {characters.map(c => (
+                          <div key={c.id} className="flex items-center gap-3 p-2 bg-surface-800 rounded-lg">
+                             <Avatar src={c.avatarUrl} fallbackColor={c.avatarColor} size="sm" />
+                             <span>{c.name}</span>
+                          </div>
+                      ))}
+                   </div>
+                </div>
+                <div>
+                   <h4 className="text-xs font-bold text-text-muted mb-2">Utilisateurs</h4>
+                   <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-2 bg-surface-800 rounded-lg">
+                         <Avatar fallbackColor="bg-primary-500" size="sm" />
+                         <span>{user?.displayName || 'Vous'}</span>
+                      </div>
+                      {participantUsers.map(u => (
+                          <div key={u.uid} className="flex items-center gap-3 p-2 bg-surface-800 rounded-lg">
+                             <Avatar fallbackColor="bg-primary-500" size="sm" />
+                             <span>{u.displayName}</span>
+                          </div>
+                      ))}
+                   </div>
+                </div>
+            </div>
+            <Button className="w-full mt-6" onClick={() => setShowParticipantsModal(false)}>Fermer</Button>
+          </div>
+        </div>
+      )}
+
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-surface-900 border border-white/10 p-6 rounded-xl max-w-md w-full shadow-2xl">
@@ -755,7 +1157,7 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                 <div>
                   <h4 className="text-sm font-bold text-text-muted mb-2">Personnages</h4>
                   <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2">
-                    {myCharacters.map(char => (
+                    {myCharacters.filter(c => !characters.some(current => current.id === c.id)).map(char => (
                       <button 
                         key={char.id}
                         onClick={() => inviteCharacter(char)}
@@ -775,6 +1177,87 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
             <div className="mt-6 flex justify-end">
               <Button variant="ghost" onClick={() => setShowInviteModal(false)}>Fermer</Button>
             </div>
+          </div>
+        </div>
+      )}
+      {showCodex && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-surface-950 border border-indigo-500/30 p-8 rounded-sm max-w-2xl w-full shadow-2xl relative overflow-hidden">
+            {/* Cinematic Gradient Background */}
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-3xl font-serif font-bold text-indigo-100 flex items-center gap-4 tracking-tighter uppercase">
+                <Book className="w-8 h-8 text-indigo-400" />
+                Codex de l'Univers
+              </h3>
+              <button onClick={() => setShowCodex(false)} className="text-text-muted hover:text-white">Fermer</button>
+            </div>
+            
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+              {loreEntries.length === 0 && (
+                <div className="text-center py-12 text-text-muted italic border border-white/5 bg-white/5 rounded-sm">
+                  Le codex est actuellement scellé ou vide.
+                </div>
+              )}
+              {loreEntries.map(entry => (
+                <div key={entry.id} className="pb-6 border-b border-white/5 last:border-0 group">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Badge variant="accent" className="rounded-sm text-[8px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30 uppercase tracking-widest">{entry.category}</Badge>
+                    <h4 className="text-xl font-serif font-bold text-white group-hover:text-indigo-300 transition-colors">{entry.title}</h4>
+                  </div>
+                  <p className="text-sm text-text-secondary leading-relaxed font-light first-letter:text-2xl first-letter:font-serif first-letter:text-indigo-400 first-letter:mr-1 first-letter:float-left">
+                    {entry.content}
+                  </p>
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                    {entry.keywords.map(k => <span key={k} className="text-[10px] text-indigo-500/50 font-mono italic">#{k}</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRoomPicker && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="bg-surface-950 border border-white/10 p-8 rounded-sm max-w-4xl w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+              <h3 className="text-2xl font-serif font-bold text-white flex items-center gap-4 tracking-tighter uppercase">
+                <MapIcon className="w-7 h-7 text-indigo-400" />
+                Exploration : Choisir un Lieu
+              </h3>
+              <button onClick={() => setShowRoomPicker(false)} className="text-text-muted hover:text-white">Fermer</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+              {rooms.length === 0 && (
+                <div className="col-span-2 text-center py-12 text-text-muted italic border border-white/5 bg-white/5 rounded-sm">
+                  Aucun lieu spécifique n'est encore découvert dans cet univers.
+                </div>
+              )}
+              {rooms.map(room => (
+                <button 
+                  key={room.id}
+                  onClick={() => switchRoom(room)}
+                  className={`relative group aspect-[16/8] rounded-sm overflow-hidden border-2 transition-all ${currentRoom?.id === room.id ? 'border-indigo-500' : 'border-white/10 hover:border-white/30'}`}
+                >
+                  <img src={room.backgroundImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-transform duration-1000 group-hover:scale-110" referrerPolicy="no-referrer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black to-black/20" />
+                  <div className="absolute inset-0 p-6 flex flex-col justify-end text-left">
+                    <h4 className="text-xl font-serif font-bold text-white mb-2">{room.name}</h4>
+                    <p className="text-xs text-text-secondary line-clamp-2 font-light">{room.description}</p>
+                    {currentRoom?.id === room.id && (
+                      <div className="absolute top-4 right-4 bg-indigo-600 text-white text-[9px] px-2 py-1 font-bold uppercase tracking-widest rounded-sm">
+                        Lieu Actuel
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-center mt-8 text-[10px] text-text-muted italic uppercase tracking-widest">
+              Le changement de lieu sera notifié à tous les participants et adaptera l'ambiance visuelle.
+            </p>
           </div>
         </div>
       )}

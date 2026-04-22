@@ -18,3 +18,9 @@ export async function uploadCharacterPreview(characterId: string, file: File): P
   await uploadBytes(storageRef, file);
   return getDownloadURL(storageRef);
 }
+
+export async function uploadGeneralImage(path: string, file: File): Promise<string> {
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}

@@ -52,9 +52,14 @@ export default function App() {
         unsubscribeProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
             setUser(docSnap.data() as User);
-            setLoading(false);
+          } else {
+            setUser(null);
           }
-          // If it doesn't exist yet, we stay in loading state while AuthPage completes creation
+          setLoading(false);
+        }, (error) => {
+          console.error("Error fetching user profile:", error);
+          setUser(null);
+          setLoading(false);
         });
       } else {
         setUser(null);

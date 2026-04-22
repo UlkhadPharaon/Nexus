@@ -64,30 +64,30 @@ export default function AdminPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-white flex flex-col h-[calc(100vh-64px)]">
-      <div className="flex items-center justify-between gap-4 mb-6 shrink-0">
-        <div className="flex items-center gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 text-red-500" />
-            <h1 className="text-2xl md:text-3xl font-bold font-serif">Tableau de Bord Admin</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold font-serif">Tableau de Bord Admin</h1>
           </div>
           
-          <div className="hidden md:flex bg-surface-900 p-1 rounded-lg border border-white/5">
+          <div className="flex bg-surface-900 p-1 border border-white/5 rounded-sm">
             <button 
               onClick={() => setActiveView('users')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'users' ? 'bg-primary-500 text-white shadow-lg' : 'text-text-muted hover:text-white'}`}
+              className={`flex-1 md:flex-none px-4 py-1.5 rounded-sm text-xs md:text-sm font-medium transition-all ${activeView === 'users' ? 'bg-primary-500 text-white shadow-lg' : 'text-text-muted hover:text-white'}`}
             >
               Utilisateurs
             </button>
             <button 
               onClick={() => setActiveView('populate')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeView === 'populate' ? 'bg-primary-500 text-white shadow-lg' : 'text-text-muted hover:text-white'}`}
+              className={`flex-1 md:flex-none px-4 py-1.5 rounded-sm text-xs md:text-sm font-medium transition-all ${activeView === 'populate' ? 'bg-primary-500 text-white shadow-lg' : 'text-text-muted hover:text-white'}`}
             >
-              Peuplement Explorer
+              Peuplement
             </button>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 ml-auto lg:ml-0">
           <Badge variant="outline" className="text-primary-400 bg-primary-500/10 border-primary-500/20">
             {users.length} Utilisateurs
           </Badge>

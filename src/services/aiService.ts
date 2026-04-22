@@ -1,4 +1,5 @@
 import { NVIDIA_CONFIG, ModelKey } from '../config/nvidia';
+import toast from 'react-hot-toast';
 
 export async function streamChatCompletion(
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
@@ -39,7 +40,9 @@ export async function streamChatCompletion(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `API Error: ${response.status} ${response.statusText}`);
+      const errorMessage = errorData.detail || `Erreur API: ${response.status} ${response.statusText}`;
+      toast.error(`Erreur de connexion IA: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();
@@ -83,6 +86,13 @@ export async function streamChatCompletion(
     onComplete(fullResponse);
   } catch (error) {
     if ((error as Error).name === 'AbortError') return;
-    onError(error as Error);
+    
+    const err = error as Error;
+    // Toast already shown for response.ok errors, show here if not generic abort
+    if (!err.message.includes('API Error') && !err.message.includes('Erreur API')) {
+        toast.error(`Erreur lors de la génération avec l'IA: ${err.message}`);
+    }
+    
+    onError(err);
   }
 }

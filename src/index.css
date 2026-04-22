@@ -127,5 +127,19 @@
   .markdown-body em {
     @apply text-primary-300 italic font-serif text-[1.05em] leading-relaxed tracking-wide;
   }
+
+  /* Universe Mode - Special styling for Shared Worlds */
+  .universe-chat-bg {
+    @apply bg-black/60 backdrop-blur-md;
+  }
+  .universe-message-user {
+    @apply bg-surface-900/60 border-l-2 border-primary-400 rounded-sm px-6 py-5 max-w-[85%] ml-auto text-text-primary backdrop-blur-sm border border-white/5;
+  }
+  .universe-message-character {
+    @apply bg-surface-800/60 border-l-2 border-indigo-400 rounded-sm px-6 py-5 max-w-[85%] text-text-primary backdrop-blur-sm border border-white/5;
+  }
+  .universe-special-text {
+    @apply font-serif italic text-indigo-200 tracking-wider;
+  }
 }
 
