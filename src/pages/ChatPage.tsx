@@ -1265,7 +1265,7 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                   onClick={() => switchRoom(room)}
                   className={`relative group aspect-[16/8] rounded-sm overflow-hidden border-2 transition-all ${currentRoom?.id === room.id ? 'border-indigo-500' : 'border-white/10 hover:border-white/30'}`}
                 >
-                  <img src={room.backgroundImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-transform duration-1000 group-hover:scale-110" referrerPolicy="no-referrer" />
+                  <img src={room.backgroundImageUrl || undefined} alt="" className="absolute inset-0 w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-transform duration-1000 group-hover:scale-110" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black to-black/20" />
                   <div className="absolute inset-0 p-6 flex flex-col justify-end text-left">
                     <h4 className="text-xl font-serif font-bold text-white mb-2">{room.name}</h4>

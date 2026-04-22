@@ -414,7 +414,7 @@ export default function MyUniversePage() {
                   <div key={world.id} className="glass-card p-6 border-white/5 bg-surface-900/60 hover:bg-surface-800/80 transition-all group flex flex-col h-full relative overflow-hidden">
                     {world.backgroundImageUrl && (
                       <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                         <img src={world.backgroundImageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                         <img src={world.backgroundImageUrl || undefined} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
                     )}
                     <div className="relative z-10 flex flex-col h-full">
@@ -529,7 +529,7 @@ export default function MyUniversePage() {
                       />
                       {newWorld.backgroundImageUrl && (
                         <div className="w-10 h-10 rounded-sm overflow-hidden border border-white/10 shrink-0">
-                          <img src={newWorld.backgroundImageUrl} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
+                          <img src={newWorld.backgroundImageUrl || undefined} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
                         </div>
                       )}
                     </div>
@@ -588,7 +588,7 @@ export default function MyUniversePage() {
                           onClick={() => toggleCharacter(char)}
                           className={`relative aspect-square rounded-sm overflow-hidden border-2 transition-all ${selectedCharacters.find(sc => sc.id === char.id) ? 'border-primary-500 scale-95 shadow-lg shadow-primary-500/20' : 'border-transparent opacity-60 hover:opacity-100'}`}
                         >
-                          <img src={char.avatarUrl} alt={char.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={char.avatarUrl || undefined} alt={char.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-1">
                              <span className="text-[8px] font-bold text-white truncate w-full">{char.name}</span>
                           </div>
@@ -799,7 +799,7 @@ export default function MyUniversePage() {
                              {worldRooms.length === 0 && <p className="text-text-muted text-sm italic text-center p-8 bg-white/5 rounded-sm col-span-2">Aucun lieu spécifique créé pour cet univers.</p>}
                              {worldRooms.map(room => (
                                <div key={room.id} className="relative group aspect-[16/7] rounded-sm overflow-hidden border border-white/10">
-                                 <img src={room.backgroundImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-700" referrerPolicy="no-referrer" />
+                                 <img src={room.backgroundImageUrl || undefined} alt="" className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-700" referrerPolicy="no-referrer" />
                                  <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
                                  <div className="absolute bottom-0 left-0 p-4">
                                    <h5 className="font-serif font-bold text-white group-hover:text-indigo-300 transition-colors">{room.name}</h5>

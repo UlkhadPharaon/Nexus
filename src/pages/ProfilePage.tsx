@@ -174,7 +174,7 @@ export default function ProfilePage() {
           <div className="bg-surface-900 p-6 md:p-8 rounded-sm border border-white/5 space-y-6">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
               <div className="relative group">
-                <img src={user.photoURL || ''} alt={user.displayName} className="w-20 h-20 md:w-24 md:h-24 rounded-full border-2 border-primary-500 shrink-0 object-cover" />
+                <img src={user.photoURL || undefined} alt={user.displayName} className="w-20 h-20 md:w-24 md:h-24 rounded-full border-2 border-primary-500 shrink-0 object-cover" />
                 <button 
                   onClick={generateUserAvatar}
                   disabled={isGeneratingAvatar}

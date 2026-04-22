@@ -29,7 +29,7 @@ export async function streamChatCompletion(
         ...(modelKey === 'nemotron-nano' ? {
           extra_body: {
             chat_template_kwargs: { enable_thinking: true },
-            reasoning_budget: 16384
+            reasoning_budget: 1024
           }
         } : {}),
         ...(modelKey === 'mistral-small' ? {

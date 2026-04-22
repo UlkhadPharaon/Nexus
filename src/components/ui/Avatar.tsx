@@ -33,7 +33,7 @@ export function Avatar({ src, alt = "Avatar", fallbackColor = "#6251EE", size = 
     >
       {hasImage ? (
         <img 
-          src={src!} 
+          src={src || undefined} 
           alt={alt} 
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"

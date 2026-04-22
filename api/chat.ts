@@ -13,7 +13,7 @@ export default async function handler(req: Request) {
 
   try {
     const body = await req.json();
-    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    let response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -21,6 +21,43 @@ export default async function handler(req: Request) {
       },
       body: JSON.stringify(body),
     });
+
+    // Fallback logic if the requested model is not found for this account
+    if (response.status === 404) {
+      const errorText = await response.clone().text();
+      if (errorText.includes("Not found for account")) {
+        console.log("Model not authorized, attempting fallback...");
+        // Fetch available models
+        const modelsRes = await fetch("https://integrate.api.nvidia.com/v1/models", {
+          headers: { "Authorization": `Bearer ${apiKey}` }
+        });
+        
+        if (modelsRes.ok) {
+          const modelsData = await modelsRes.json();
+          const availableModels = modelsData.data as {id: string}[];
+          
+          // Prioritize llama or mistral instruct models
+          let fallbackModel = availableModels.find(m => m.id.includes("llama-3") && m.id.includes("instruct"))?.id
+            || availableModels.find(m => m.id.includes("mistral") && m.id.includes("instruct"))?.id
+            || availableModels.find(m => m.id.includes("instruct"))?.id
+            || availableModels[0]?.id;
+
+          if (fallbackModel) {
+            console.log(`Using fallback model: ${fallbackModel}`);
+            body.model = fallbackModel;
+            // Retry
+            response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify(body),
+            });
+          }
+        }
+      }
+    }
 
     return new Response(response.body, {
       status: response.status,
