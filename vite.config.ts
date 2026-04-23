@@ -18,7 +18,14 @@ export default defineConfig(({mode}) => {
           theme_color: '#6251EE',
           background_color: '#0A0A0F',
           display: 'standalone',
-          icons: []
+          icons: [
+            {
+              src: '/logoNexus.png',
+              sizes: '192x192 512x512',
+              type: 'image/png',
+              purpose: 'any maskable'
+            }
+          ]
         }
       })
     ],
