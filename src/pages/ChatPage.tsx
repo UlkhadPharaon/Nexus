@@ -498,6 +498,8 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
                 }
               }).catch(e => console.error("Memory error:", e));
             }
+          } else {
+            toast.error("L'IA n'a retourné aucune réponse. Modifiez votre message ou changez les préférences.");
           }
         },
         (error) => {

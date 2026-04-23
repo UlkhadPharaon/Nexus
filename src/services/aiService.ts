@@ -12,13 +12,24 @@ export async function streamChatCompletion(
 ): Promise<void> {
   const model = NVIDIA_CONFIG.models[modelKey];
 
+  // Timeout automatique après 45s s'il n'y a pas de réponse complète, pour éviter le "spin infini"
+  const fetchAbortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    fetchAbortController.abort();
+  }, 45000);
+
+  // Lier le signal utilisateur au contrôleur interne
+  if (signal) {
+    signal.addEventListener('abort', () => fetchAbortController.abort());
+  }
+
   try {
     const response = await fetch("/api/chat", {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      signal,
+      signal: fetchAbortController.signal,
       body: JSON.stringify({
         model: model.id,
         messages,
@@ -76,6 +87,9 @@ export async function streamChatCompletion(
           }
           try {
             const parsed = JSON.parse(data);
+            if (parsed.error) {
+              throw new Error(parsed.error.message || JSON.stringify(parsed.error));
+            }
             const delta = parsed.choices?.[0]?.delta;
             if (delta) {
               const content = delta.content;
@@ -85,16 +99,29 @@ export async function streamChatCompletion(
                 onChunk(content);
               }
             }
-          } catch {
-            // Ignorer les lignes malformées qui sont complètes mais invalides
+          } catch (e: any) {
+            // Identifier les erreurs d'API vs erreurs de parsing
+            if (e.message && !e.message.includes("Unexpected token")) {
+               throw e;
+            }
           }
         }
       }
     }
     
+    clearTimeout(timeoutId);
     onComplete(fullResponse);
   } catch (error) {
-    if ((error as Error).name === 'AbortError') return;
+    clearTimeout(timeoutId);
+    if ((error as Error).name === 'AbortError') {
+      // Vérifier si c'est notre timeout ou une annulation utilisateur
+      if (!signal?.aborted) {
+         const timeoutErr = new Error("L'IA a mis trop de temps à répondre (Timeout de 45s). Veuillez réessayer.");
+         toast.error(timeoutErr.message);
+         onError(timeoutErr);
+      }
+      return;
+    }
     
     const err = error as Error;
     // Toast already shown for response.ok errors, show here if not generic abort
