@@ -12,42 +12,17 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        injectRegister: 'auto',
-        includeAssets: ['logoNexus.png', 'icon.svg'],
         manifest: {
           name: 'Nexus',
           short_name: 'Nexus',
-          description: 'Votre univers IA',
-          theme_color: '#111827',
+          theme_color: '#6251EE',
           background_color: '#0A0A0F',
           display: 'standalone',
-          start_url: '/',
-          id: '/',
-          icons: [
-            {
-              src: '/logoNexus.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: '/logoNexus.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: '/logoNexus.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable'
-            }
-          ]
+          icons: []
         }
       })
     ],
     define: {
-      // API Key setting
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
     resolve: {
