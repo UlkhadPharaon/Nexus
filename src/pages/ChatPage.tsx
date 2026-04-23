@@ -82,7 +82,10 @@ export default function ChatPage() {
 
     const loadChat = async () => {
       try {
-        const char = await getCharacter(customId);
+        const char = customId.startsWith('narrator-') 
+          ? ({ id: customId, name: 'Narrateur', avatarUrl: '', description: 'Narrateur de l\'univers' } as Character) 
+          : await getCharacter(customId);
+        
         if (!char) {
           toast.error("Personnage introuvable");
           navigate('/explore');
@@ -699,7 +702,7 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
   if (isLoading || !character) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-surface-950">
-        <Sparkles className="w-8 h-8 text-primary-500 animate-pulse mb-4" />
+        <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-8 h-8 animate-pulse mb-4 rounded-full" />
         <p className="text-text-secondary">Connexion neuronale en cours...</p>
       </div>
     );

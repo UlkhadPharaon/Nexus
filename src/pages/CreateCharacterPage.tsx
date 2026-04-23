@@ -375,10 +375,11 @@ Respond exactly as the character would in French. Follow the speaking style stri
         - Style : Réalisme cinématographique ou le style de l'univers mentionné.
         - Détails : Décris un portrait professionnel, une tenue adaptée à l'univers, un éclairage dramatique.
         - Langue : Prompt en ANGLAIS.
+        - Longueur : Maximum 750 caractères.
         - Sortie : UNIQUEMENT le texte du prompt.`,
       });
 
-      const expandedPrompt = expansionResponse.text?.trim() || `A professional artistic portrait of a ${user.displayName || 'fantasy persona'} character, matching the style of ${formData.name || 'this character'}, highly detailed, cinematic lighting, 4k.`;
+      const expandedPrompt = (expansionResponse.text?.trim() || `A professional artistic portrait of a ${user.displayName || 'fantasy persona'} character, matching the style of ${formData.name || 'this character'}, highly detailed, cinematic lighting, 4k.`).substring(0, 800);
 
       const res = await fetch('/api/generate-image', {
         method: 'POST',
@@ -458,10 +459,11 @@ Respond exactly as the character would in French. Follow the speaking style stri
         - Détails : Décris précisément l'apparence physique, l'expression faciale reflétant le mood, la tenue vestimentaire et l'arrière-plan immersif lié à l'univers.
         - Technique : Utilise des termes de photographie (ex: 85mm portrait, depth of field, sharp focus, 8k, professional lighting).
         - Langue : Le prompt de sortie DOIT être en ANGLAIS.
+        - Longueur : Maximum 750 caractères.
         - Sortie : Donne UNIQUEMENT le texte du prompt, sans explications ni guillemets.`,
       });
 
-      const expandedPrompt = expansionResponse.text?.trim() || `A detailed professional portrait of ${formData.name}, ${formData.tagline}. Genre: ${formData.category}. ${formData.personality.substring(0, 100)}. Cinematic lighting, highly detailed, eye-level shot, artistic style, 4k.`;
+      const expandedPrompt = (expansionResponse.text?.trim() || `A detailed professional portrait of ${formData.name}, ${formData.tagline}. Genre: ${formData.category}. ${formData.personality.substring(0, 100)}. Cinematic lighting, highly detailed, eye-level shot, artistic style, 4k.`).substring(0, 800);
 
       const res = await fetch('/api/generate-image', {
         method: 'POST',
@@ -716,7 +718,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
                     onClick={generateAvatar}
                     isLoading={isGeneratingAvatar}
                   >
-                    <Sparkles className="w-3.5 h-3.5 mr-2 text-primary-400" />
+                    <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-3.5 h-3.5 mr-2 rounded-full" />
                     Générer
                   </Button>
                   
@@ -727,7 +729,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
                       disabled={isGeneratingUserAvatar}
                       className="text-[10px] text-text-muted hover:text-primary-400 flex items-center justify-center gap-1 w-full transition-colors uppercase tracking-widest font-bold"
                     >
-                      {isGeneratingUserAvatar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-primary-500" />}
+                      {isGeneratingUserAvatar ? <Loader2 className="w-3 h-3 animate-spin" /> : <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-3 h-3 rounded-full" />}
                       Générer mon image de profil
                     </button>
                   </div>

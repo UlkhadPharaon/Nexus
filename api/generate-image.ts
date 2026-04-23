@@ -13,6 +13,12 @@ export default async function handler(req: Request) {
 
   try {
     const body = await req.json();
+    
+    // Safety check for prompt length as per NVIDIA constraints (max 800 chars)
+    if (body.prompt && body.prompt.length > 800) {
+      body.prompt = body.prompt.substring(0, 800);
+    }
+
     const response = await fetch("https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.2-klein-4b", {
       method: "POST",
       headers: {

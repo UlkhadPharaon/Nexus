@@ -80,8 +80,8 @@ export default function AuthPage() {
     <PageWrapper className="flex items-center justify-center p-4">
       <div className="glass-card w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-primary-500/10 rounded-xl mb-4">
-            <Sparkles className="w-6 h-6 text-primary-400" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-surface-900 rounded-xl mb-4 overflow-hidden">
+            <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-full h-full object-cover" />
           </div>
           <h2 className="font-display text-2xl font-bold">
             {isLogin ? 'Bon retour' : 'Créez votre compte'}

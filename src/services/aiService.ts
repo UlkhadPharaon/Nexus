@@ -38,6 +38,10 @@ export async function streamChatCompletion(
     });
 
     if (!response.ok) {
+      if (response.status === 504) {
+        toast.error("Le modèle met trop de temps à répondre (Timeout Vercel). Essayez de relancer votre message ou d'utiliser le modèle Standard.");
+        throw new Error("Timeout 504: Le serveur a mis trop de temps à répondre.");
+      }
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.detail || `Erreur API: ${response.status} ${response.statusText}`;
       toast.error(`Erreur de connexion IA: ${errorMessage}`);

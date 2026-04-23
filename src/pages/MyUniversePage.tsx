@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { useAuthStore } from '../stores/authStore';
-import { getUserCharacters, deleteCharacter, getUniverses, createUniverse, searchUsers, getPublicCharacters, getConversations, createConversation, getLoreEntries, createLoreEntry, getUniverseRooms, createUniverseRoom } from '../services/firestore';
+import { getUserCharacters, deleteCharacter, getUniverses, createUniverse, searchUsers, getAllUsers, getPublicCharacters, getConversations, createConversation, getLoreEntries, createLoreEntry, getUniverseRooms, createUniverseRoom } from '../services/firestore';
 import { uploadGeneralImage } from '../services/storage';
 import { Character, Universe, User, Conversation, LoreEntry, UniverseRoom } from '../types';
 import { CharacterCard } from '../components/character/CharacterCard';
@@ -35,8 +35,7 @@ export default function MyUniversePage() {
   const [isCreating, setIsCreating] = useState(false);
   
   // Invite state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>([]);
   const [selectedCharacters, setSelectedCharacters] = useState<Character[]>([]);
@@ -72,10 +71,11 @@ export default function MyUniversePage() {
         - Style : Illustration concept art professionnelle, haute résolution, cinématique.
         - Composition : Angle large, atmosphère riche, détails immersifs.
         - Langue : Prompt en ANGLAIS.
+        - Longueur : Maximum 750 caractères.
         - Sortie : UNIQUEMENT le texte du prompt.`,
       });
 
-      const expandedPrompt = expansionResponse.text?.trim() || `Atmospheric background for ${target.name}, ${target.description}, high quality concept art.`;
+      const expandedPrompt = (expansionResponse.text?.trim() || `Atmospheric background for ${target.name}, ${target.description}, high quality concept art.`).substring(0, 800);
 
       const res = await fetch('/api/generate-image', {
         method: 'POST',
@@ -154,29 +154,32 @@ export default function MyUniversePage() {
     } catch (e) {}
   };
 
+  const fetchUsersList = async () => {
+    try {
+      const data = await getAllUsers(); // Get recent/all users
+      if (user) {
+        setAvailableUsers(data.filter(u => u.uid !== user.uid));
+      } else {
+        setAvailableUsers(data);
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchCharacters(), fetchUniverses(), fetchPublicCharacters()]);
+      await Promise.all([fetchCharacters(), fetchUniverses(), fetchPublicCharacters(), fetchUsersList()]);
       setLoading(false);
     };
     init();
   }, [user]);
 
-  const handleSearchUsers = async (val: string) => {
-    setSearchQuery(val);
-    if (val.length > 2) {
-      const results = await searchUsers(val);
-      setSearchResults(results.filter(u => u.uid !== user?.uid && !selectedParticipants.find(p => p.uid === u.uid)));
+  const toggleParticipant = (u: User) => {
+    if (selectedParticipants.find(p => p.uid === u.uid)) {
+      setSelectedParticipants(prev => prev.filter(p => p.uid !== u.uid));
     } else {
-      setSearchResults([]);
+      setSelectedParticipants(prev => [...prev, u]);
     }
-  };
-
-  const addParticipant = (u: User) => {
-    setSelectedParticipants(prev => [...prev, u]);
-    setSearchResults([]);
-    setSearchQuery('');
   };
 
   const removeParticipant = (uid: string) => {
@@ -240,11 +243,12 @@ export default function MyUniversePage() {
       }
 
       // Create new shared conversation for this universe
+      const characterId = uni.characterIds && uni.characterIds.length > 0 ? uni.characterIds[0] : `narrator-${uni.id}`;
       const convoData: Omit<Conversation, 'id' | 'createdAt' | 'lastMessageAt'> = {
         userId: user.uid,
         participantIds: Array.from(new Set([user.uid, ...uni.participantIds])),
-        characterId: uni.characterIds[0] || 'none',
-        characterIds: uni.characterIds,
+        characterId: characterId,
+        characterIds: uni.characterIds && uni.characterIds.length > 0 ? uni.characterIds : [characterId],
         characterName: uni.name,
         characterAvatarUrl: uni.backgroundImageUrl || '',
         lastMessage: `Bienvenue dans l'univers ${uni.name}`,
@@ -462,7 +466,7 @@ export default function MyUniversePage() {
         {/* Modal Création de Monde */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto">
-            <div className="bg-surface-950 border border-white/10 p-8 rounded-sm max-w-3xl w-full shadow-2xl my-8">
+            <div className="bg-surface-950 border border-white/10 p-4 sm:p-8 rounded-sm max-w-3xl w-full shadow-2xl my-4 sm:my-8">
               <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
                 <h3 className="text-2xl font-serif font-bold flex items-center gap-3 uppercase tracking-tighter">
                   <Globe className="w-6 h-6 text-primary-400" />
@@ -473,8 +477,8 @@ export default function MyUniversePage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-4 sm:mb-8">
+                <div className="space-y-3 sm:space-y-6">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-primary-400 mb-2 block">Nom du Monde</label>
                     <Input 
@@ -487,8 +491,8 @@ export default function MyUniversePage() {
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-primary-400 mb-2 block">Synopsis & Description</label>
                     <textarea 
-                      placeholder="Décrivez l'univers, son atmosphère..." 
-                      className="w-full bg-surface-900 border border-white/10 rounded-sm p-3 text-sm min-h-[120px] focus:outline-none focus:border-primary-500 transition-colors"
+                      placeholder="Décrivez l'univers..." 
+                      className="w-full bg-surface-900 border border-white/10 rounded-sm p-3 text-sm min-h-[80px] sm:min-h-[120px] focus:outline-none focus:border-primary-500 transition-colors"
                       value={newWorld.description}
                       onChange={e => setNewWorld({...newWorld, description: e.target.value})}
                     />
@@ -499,8 +503,8 @@ export default function MyUniversePage() {
                        Règles Fondamentales
                     </label>
                     <textarea 
-                      placeholder="Les lois physiques, sociales ou tabous de cet univers..." 
-                      className="w-full bg-surface-900 border border-white/10 rounded-sm p-3 text-xs min-h-[100px] focus:outline-none focus:border-primary-500 transition-colors font-mono"
+                      placeholder="Les lois..." 
+                      className="w-full bg-surface-900 border border-white/10 rounded-sm p-3 text-xs min-h-[80px] sm:min-h-[100px] focus:outline-none focus:border-primary-500 transition-colors font-mono"
                       value={newWorld.rules}
                       onChange={e => setNewWorld({...newWorld, rules: e.target.value})}
                     />
@@ -517,7 +521,7 @@ export default function MyUniversePage() {
                         className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                        >
                         {isGeneratingImg ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
-                        Générer avec l'IA
+                        Générer
                        </button>
                     </label>
                     <div className="flex gap-2">
@@ -527,48 +531,32 @@ export default function MyUniversePage() {
                         value={newWorld.backgroundImageUrl}
                         onChange={e => setNewWorld({...newWorld, backgroundImageUrl: e.target.value})}
                       />
-                      {newWorld.backgroundImageUrl && (
-                        <div className="w-10 h-10 rounded-sm overflow-hidden border border-white/10 shrink-0">
-                          <img src={newWorld.backgroundImageUrl || undefined} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3 sm:space-y-6">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-primary-400 mb-2 block flex items-center gap-2">
                        <Users className="w-4 h-4" />
                        Inviter des Humains
                     </label>
-                    <div className="relative mb-3">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <Input 
-                        placeholder="Rechercher par nom..." 
-                        className="pl-10 bg-surface-900 border-white/10 h-10 rounded-sm"
-                        value={searchQuery}
-                        onChange={e => handleSearchUsers(e.target.value)}
-                      />
-                      {searchResults.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-surface-800 border border-white/10 rounded-sm z-50 overflow-hidden shadow-2xl">
-                          {searchResults.map(u => (
-                            <button 
-                              key={u.uid}
-                              onClick={() => addParticipant(u)}
-                              className="w-full flex items-center gap-3 p-3 hover:bg-primary-500/10 transition-colors border-b border-white/5 last:border-0"
-                            >
-                              <Avatar src={u.photoURL} alt={u.displayName} size="xs" />
-                              <span className="text-sm font-medium">{u.displayName}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2 p-2 bg-surface-900/50 border border-white/5 rounded-sm max-h-[120px] overflow-y-auto scrollbar-hide">
+                      {availableUsers.map(u => (
+                        <button
+                          key={u.uid}
+                          onClick={() => toggleParticipant(u)}
+                          className={`relative aspect-square flex flex-col items-center justify-center p-1 rounded-sm border-2 transition-all ${selectedParticipants.find(p => p.uid === u.uid) ? 'border-primary-500 scale-95 shadow-lg shadow-primary-500/20 bg-surface-800' : 'border-white/5 bg-surface-900/50 hover:border-white/20'}`}
+                        >
+                          <Avatar src={u.photoURL} alt={u.displayName} size="xs" className="mb-0.5" />
+                          <span className="text-[8px] font-medium text-white truncate w-full text-center">{u.displayName}</span>
+                        </button>
+                      ))}
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1">
                       {selectedParticipants.map(participant => (
-                        <Badge key={participant.uid} className="bg-surface-800 border-white/10 px-2 py-1 flex items-center gap-2 rounded-sm text-[10px]">
+                        <Badge key={participant.uid} className="bg-surface-800 border-white/10 px-1.5 py-0.5 flex items-center gap-1 rounded-sm text-[9px]">
                           {participant.displayName}
                           <button onClick={() => removeParticipant(participant.uid)} className="hover:text-red-400">×</button>
                         </Badge>
@@ -581,7 +569,7 @@ export default function MyUniversePage() {
                        <Sparkles className="w-4 h-4" />
                        Peupler l'Univers (Personnages)
                     </label>
-                    <div className="grid grid-cols-4 gap-2 mb-2 p-3 bg-surface-900/50 border border-white/5 rounded-sm max-h-[160px] overflow-y-auto scrollbar-hide">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2 p-2 bg-surface-900/50 border border-white/5 rounded-sm max-h-[120px] overflow-y-auto scrollbar-hide">
                       {availableCharacters.map(char => (
                         <button
                           key={char.id}
@@ -589,18 +577,17 @@ export default function MyUniversePage() {
                           className={`relative aspect-square rounded-sm overflow-hidden border-2 transition-all ${selectedCharacters.find(sc => sc.id === char.id) ? 'border-primary-500 scale-95 shadow-lg shadow-primary-500/20' : 'border-transparent opacity-60 hover:opacity-100'}`}
                         >
                           <img src={char.avatarUrl || undefined} alt={char.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-1">
-                             <span className="text-[8px] font-bold text-white truncate w-full">{char.name}</span>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-0.5">
+                             <span className="text-[7px] font-bold text-white truncate w-full">{char.name}</span>
                           </div>
                         </button>
                       ))}
                     </div>
-                    <p className="text-[10px] text-text-muted italic"><Info className="w-3 h-3 inline mr-1" /> Cliquez sur les personnages pour les ajouter ou les retirer de l'univers.</p>
                   </div>
-
-                  <div className="pt-6 border-t border-white/5">
+                  
+                  <div className="pt-2 border-t border-white/5">
                     <Button 
-                      className="w-full rounded-sm h-12 uppercase tracking-widest text-sm shadow-xl shadow-primary-500/10" 
+                      className="w-full rounded-sm h-10 uppercase tracking-widest text-xs shadow-xl shadow-primary-500/10" 
                       onClick={handleCreateWorld}
                       disabled={isCreating}
                     >
