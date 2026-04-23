@@ -12,6 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: 'auto',
         includeAssets: ['logoNexus.png', 'icon.svg'],
         manifest: {
           name: 'Nexus',
@@ -20,6 +21,8 @@ export default defineConfig(({mode}) => {
           theme_color: '#111827',
           background_color: '#0A0A0F',
           display: 'standalone',
+          start_url: '/',
+          id: '/',
           icons: [
             {
               src: '/logoNexus.png',
