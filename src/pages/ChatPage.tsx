@@ -702,7 +702,7 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
   if (isLoading || !character) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-surface-950">
-        <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-8 h-8 animate-pulse mb-4 rounded-full" />
+        <img src="/logoNexus.png" alt="Nexus Logo" className="w-8 h-8 animate-pulse mb-4 rounded-full" />
         <p className="text-text-secondary">Connexion neuronale en cours...</p>
       </div>
     );

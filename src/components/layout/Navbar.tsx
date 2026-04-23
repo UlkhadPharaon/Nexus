@@ -20,7 +20,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-6 h-6 rounded-full" />
+            <img src="/logoNexus.png" alt="Nexus Logo" className="w-6 h-6 rounded-full" />
             <span className="font-serif italic font-bold text-xl tracking-wide text-primary-100">Nexus</span>
           </Link>
           

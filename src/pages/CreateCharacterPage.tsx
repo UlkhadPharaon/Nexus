@@ -718,7 +718,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
                     onClick={generateAvatar}
                     isLoading={isGeneratingAvatar}
                   >
-                    <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-3.5 h-3.5 mr-2 rounded-full" />
+                    <img src="/logoNexus.png" alt="Nexus Logo" className="w-3.5 h-3.5 mr-2 rounded-full" />
                     Générer
                   </Button>
                   
@@ -729,7 +729,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
                       disabled={isGeneratingUserAvatar}
                       className="text-[10px] text-text-muted hover:text-primary-400 flex items-center justify-center gap-1 w-full transition-colors uppercase tracking-widest font-bold"
                     >
-                      {isGeneratingUserAvatar ? <Loader2 className="w-3 h-3 animate-spin" /> : <img src="/logoNexus.jpg" alt="Nexus Logo" className="w-3 h-3 rounded-full" />}
+                      {isGeneratingUserAvatar ? <Loader2 className="w-3 h-3 animate-spin" /> : <img src="/logoNexus.png" alt="Nexus Logo" className="w-3 h-3 rounded-full" />}
                       Générer mon image de profil
                     </button>
                   </div>
