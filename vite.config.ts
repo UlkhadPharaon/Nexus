@@ -12,18 +12,32 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        includeAssets: ['logoNexus.png', 'icon.svg'],
         manifest: {
           name: 'Nexus',
           short_name: 'Nexus',
-          theme_color: '#6251EE',
+          description: 'Votre univers IA',
+          theme_color: '#111827',
           background_color: '#0A0A0F',
           display: 'standalone',
           icons: [
             {
               src: '/logoNexus.png',
-              sizes: '192x192 512x512',
+              sizes: '192x192',
               type: 'image/png',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: '/logoNexus.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: '/logoNexus.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         }
