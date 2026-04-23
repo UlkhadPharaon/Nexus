@@ -1,26 +1,15 @@
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { storage } from '../config/firebase';
+import { compressImage } from '../utils/imageUtils';
 
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop();
-  const filePath = `avatars/${userId}/${Date.now()}.${fileExt}`;
-  const storageRef = ref(storage, filePath);
-  
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  // Return compressed base64 data URI instead of uploading to Firebase Storage
+  // This bypasses Firebase Storage CORS/rules issues and keeps the data size small.
+  return await compressImage(file, 256, 256);
 }
 
 export async function uploadCharacterPreview(characterId: string, file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop();
-  const filePath = `characters/${characterId}/${Date.now()}.${fileExt}`;
-  const storageRef = ref(storage, filePath);
-  
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  return await compressImage(file, 400, 400);
 }
 
 export async function uploadGeneralImage(path: string, file: File): Promise<string> {
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  return await compressImage(file, 800, 800);
 }

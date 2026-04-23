@@ -711,16 +711,27 @@ Respond exactly as the character would in French. Follow the speaking style stri
                       <input type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
                     </label>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-2 w-full" 
-                    onClick={generateAvatar}
-                    isLoading={isGeneratingAvatar}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-2 text-primary-400" />
-                    Générer
-                  </Button>
+                  
+                  <div className="w-full flex gap-2 mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 px-2" 
+                      onClick={generateAvatar}
+                      isLoading={isGeneratingAvatar}
+                      title="Générer avec l'IA"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1.5 text-primary-400 shrink-0" />
+                      IA
+                    </Button>
+                    <label className="flex-1">
+                      <div className="inline-flex items-center justify-center rounded-xl font-medium transition-all border border-white/20 hover:bg-white/5 text-white active:scale-95 h-9 w-full cursor-pointer text-sm" title="Importer une image">
+                        <ImagePlus className="w-3.5 h-3.5 mr-1.5 text-text-muted shrink-0" />
+                        Image
+                      </div>
+                      <input type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
+                    </label>
+                  </div>
                   
                   <div className="pt-4 border-t border-white/5 w-full">
                     <button 
