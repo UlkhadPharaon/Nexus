@@ -66,24 +66,24 @@ Vous gérez plusieurs personnages simultanément : ${characterNames}.
 
 ${charactersArray.map((c, i) => `
 ### [PERSONNAGE ${i + 1}: ${c.name}]
-- Personnalité: ${c.persona.personality}
-- Histoire: ${c.persona.backstory}
-- Style de parole: ${c.persona.speakingStyle}
+- Personnalité: ${c.persona?.personality || 'Non définie'}
+- Histoire: ${c.persona?.backstory || 'Non définie'}
+- Style de parole: ${c.persona?.speakingStyle || 'Standard'}
 `).join('\n')}
 `;
   } else {
     characterDefContext = `
 ## VOTRE PERSONNALITÉ (${mainCharacter.name})
-${mainCharacter.persona.personality}
+${mainCharacter.persona?.personality || ''}
 
 ## VOTRE HISTOIRE
-${mainCharacter.persona.backstory}
+${mainCharacter.persona?.backstory || ''}
 
 ## VOTRE UNIVERS & CONTEXTE
-${mainCharacter.persona.universe}
+${mainCharacter.persona?.universe || ''}
 
 ## VOTRE STYLE DE PAROLE
-${mainCharacter.persona.speakingStyle}
+${mainCharacter.persona?.speakingStyle || ''}
 `;
   }
 
@@ -128,10 +128,10 @@ ${usersPersonaContext}
 - Keep responses conversational, concise and engaging.
 ${nsfwRules}
 - INSTRUCTIONS MÉTA (GUIDAGE) : Si le message de l'utilisateur contient des instructions encadrées par des doubles astérisques, intégrez-les immédiatement.
-${!isMultiChar && mainCharacter.persona.systemPromptAddons ? `\n## Additional Instructions\n${mainCharacter.persona.systemPromptAddons}` : ''}
+${!isMultiChar && mainCharacter.persona?.systemPromptAddons ? `\n## Additional Instructions\n${mainCharacter.persona.systemPromptAddons}` : ''}
 
 ## Example Dialogues (for reference only)
-${mainCharacter.persona.exampleDialogues.map(ex => `User: ${ex.user}\n${mainCharacter.name}: ${ex.character}`).join('\n\n')}`;
+${mainCharacter.persona?.exampleDialogues ? mainCharacter.persona.exampleDialogues.map(ex => `User: ${ex.user}\n${mainCharacter.name}: ${ex.character}`).join('\n\n') : ''}`;
 }
 
 export function buildContextMessages(

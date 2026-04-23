@@ -512,10 +512,12 @@ Output ONLY the number indicating the CHANGE in affinity (e.g. "+5" or "-10").`;
           top_p: user?.preferences?.topP
         }
       );
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Erreur lors de la préparation de la requête:", err);
       setIsGenerating(false);
       setAbortController(null);
       setStreamingText('');
+      toast.error("Erreur interne: " + (err.message || "Impossible de générer le prompt."));
     }
   };
 
