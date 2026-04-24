@@ -623,7 +623,7 @@ Respond exactly as the character would in French. Follow the speaking style stri
           speakingStyle: formData.speakingStyle.trim(),
           exampleDialogues,
           firstMessage: formData.firstMessage?.trim() || `Bonjour, je suis ${formData.name.trim()}.`,
-          systemPromptAddons: formData.systemPromptAddons?.trim()
+          ...((formData.systemPromptAddons?.trim()) ? { systemPromptAddons: formData.systemPromptAddons.trim() } : {})
         }
       };
 

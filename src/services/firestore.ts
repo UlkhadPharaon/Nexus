@@ -271,9 +271,16 @@ export async function addMessage(conversationId: string, message: Omit<Message, 
     timestamp: serverTimestamp(),
   };
 
-  // Ensure optional fields are handled correctly
-  if (message.userId) messageData.userId = message.userId;
-  if (message.userName) messageData.userName = message.userName;
+  // Ensure optional fields are handled correctly (and remove undefined to prevent Firestore crash)
+  if (message.userId === undefined) delete messageData.userId;
+  if (message.userName === undefined) delete messageData.userName;
+  
+  // Double-check for any other top-level undefined fields
+  for (const key in messageData) {
+    if (messageData[key] === undefined) {
+      delete messageData[key];
+    }
+  }
 
   await addDoc(collection(db, `conversations/${conversationId}/messages`), messageData);
   
