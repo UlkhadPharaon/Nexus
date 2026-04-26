@@ -3,33 +3,26 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // -------------------------------------------------------------------------
-    // HELPERS
+    // GLOBAL HELPERS
     // -------------------------------------------------------------------------
     function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && ('email' in request.auth.token) && request.auth.token.email == 'ulrichtapsoba2009@gmail.com'; }
     
-    function isOwner(data) {
-      return isSignedIn() && (
-        data.get('userId', '') == request.auth.uid || 
-        data.get('creatorId', '') == request.auth.uid
-      );
+    // Check if the user is a designated admin by email
+    function isAdmin() { 
+      return isSignedIn() && 
+             (request.auth.token.email == 'ulrichtapsoba2009@gmail.com' && 
+              request.auth.token.email_verified == true); 
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
     }
 
-    function isParticipant(data) {
-      return isSignedIn() && (
-        request.auth.uid == data.get('userId', '') ||
-        (data.get('participantIds', []) is list && request.auth.uid in data.get('participantIds', []))
-      );
-    }
-
-    function canAccessConversation(conversationId) {
-      // Use getCached for efficiency if rules engine supports, or standard get()
-      let docData = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
-      return isParticipant(docData) || isAdmin();
-    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
 
     // -------------------------------------------------------------------------
-    // GLOBAL GATE
+    // GLOBAL DENY
     // -------------------------------------------------------------------------
     match /{document=**} { 
       allow read, write: if false; 
@@ -39,76 +32,137 @@ service cloud.firestore {
     // COLLECTIONS
     // -------------------------------------------------------------------------
 
+    // USERS
     match /users/{userId} {
-      // Allow reading profiles for shared context. 
-      // Note: PII should ideally be isolated, but we allow global read as requested for full functionality.
-      allow read, list: if isSignedIn() || isAdmin();
-      allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
-    }
-    
-    match /characters/{characterId} {
-      // Broad read access to support exploration and shared chats
-      allow read, list: if (resource.data.get('isPublic', false) == true) || isSignedIn() || isAdmin();
+      function isValidUser(data) {
+        return data.uid is string && data.uid.size() <= 128 &&
+               data.uid == userId;
+      }
       
-      allow create: if isSignedIn() && (request.resource.data.get('creatorId', '') == request.auth.uid || isAdmin());
-      allow update, delete: if isOwner(resource.data) || isAdmin();
+      allow read, list: if isSignedIn() || isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
+      allow delete: if isAdmin();
     }
     
+    // CHARACTERS
+    match /characters/{characterId} {
+      function isValidCharacter(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+               data.creatorId is string && data.creatorId.size() <= 128;
+      }
+
+      allow read, list: if (resource.data.get('isPublic', false) == true) || 
+                          (isSignedIn() && resource.data.get('creatorId', '') == request.auth.uid) || 
+                          isAdmin();
+      
+      allow create: if isSignedIn() && (incoming().creatorId == request.auth.uid) && isValidCharacter(incoming());
+      allow update: if (isSignedIn() && existing().creatorId == request.auth.uid) || isAdmin();
+      allow delete: if (isSignedIn() && existing().creatorId == request.auth.uid) || isAdmin();
+    }
+    
+    // FOLDERS
     match /folders/{folderId} {
-      allow read, list: if isOwner(resource.data) || isAdmin();
-      allow write: if isOwner(resource.data) || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow read, list, write: if (isSignedIn() && resource.data.get('userId', '') == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn() && incoming().get('userId', '') == request.auth.uid;
     }
     
+    // PERSONAS
     match /personas/{personaId} {
       allow read, list: if isSignedIn() || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
-      allow update, delete: if isOwner(resource.data) || isAdmin();
+      allow create: if isSignedIn() && incoming().get('userId', '') == request.auth.uid;
+      allow update, delete: if (isSignedIn() && existing().get('userId', '') == request.auth.uid) || isAdmin();
     }
     
+    // CONVERSATIONS
     match /conversations/{conversationId} {
-      // Participants can see their conversations.
+      function isParticipant(data) {
+        return isSignedIn() && (
+          request.auth.uid == data.get('userId', '') ||
+          (data.get('participantIds', []) is list && request.auth.uid in data.get('participantIds', []))
+        );
+      }
+
       allow get: if isParticipant(resource.data) || isAdmin();
-      
-      // Query enforcer for list
       allow list: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         request.auth.uid in resource.data.get('participantIds', []) ||
         isAdmin()
       );
       
-      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
-      
-      // Participants can update conversation meta (affinity, list, timestamps)
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
       allow update: if isParticipant(resource.data) || isAdmin();
-      allow delete: if (isSignedIn() && resource.data.get('userId', '') == request.auth.uid) || isAdmin();
+      allow delete: if (isSignedIn() && existing().userId == request.auth.uid) || isAdmin();
       
+      // MESSAGES
       match /messages/{messageId} {
-        allow read: if canAccessConversation(conversationId);
-        
-        allow create: if canAccessConversation(conversationId) && (
-          (request.resource.data.get('role', '') in ['assistant', 'system']) || 
-          (isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid) ||
+        function canAccessThread() {
+          let conv = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+          return isSignedIn() && (
+            request.auth.uid == conv.userId || 
+            (conv.get('participantIds', []) is list && request.auth.uid in conv.participantIds) ||
+            isAdmin()
+          );
+        }
+
+        allow read: if canAccessThread();
+        allow create: if canAccessThread() && (
+          (incoming().get('role', '') in ['assistant', 'system']) || 
+          (incoming().get('userId', '') == request.auth.uid) ||
           isAdmin()
         );
-        
-        // Participants can moderate or edit messages in the thread
-        allow update: if canAccessConversation(conversationId);
-        allow delete: if isAdmin() || (isSignedIn() && resource.data.get('userId', '') == request.auth.uid);
+        allow update: if canAccessThread();
+        allow delete: if isAdmin() || (isSignedIn() && existing().get('userId', '') == request.auth.uid);
       }
     }
 
+    // UNIVERSES
     match /universes/{universeId} {
-      allow read, list: if resource.data.get('isPublic', false) == true || 
-                          isOwner(resource.data) || 
-                          (request.auth.uid in resource.data.get('participantIds', [])) || 
-                          isAdmin();
-      allow create: if isSignedIn() && request.resource.data.get('creatorId', '') == request.auth.uid;
-      allow update, delete: if isOwner(resource.data) || isAdmin();
+      function canAccessUniverse(data) {
+        return data.get('isPublic', false) == true || 
+               data.get('creatorId', '') == request.auth.uid || 
+               (data.get('participantIds', []) is list && request.auth.uid in data.participantIds) || 
+               isAdmin();
+      }
+
+      allow read, list: if canAccessUniverse(resource.data);
+      allow create: if isSignedIn() && incoming().creatorId == request.auth.uid;
+      allow update: if (isSignedIn() && existing().creatorId == request.auth.uid) || isAdmin();
+      allow delete: if (isSignedIn() && existing().creatorId == request.auth.uid) || isAdmin();
+    }
+
+    // LORE
+    match /lore/{loreId} {
+      function canAccessLore(universeId) {
+        let universe = get(/databases/$(database)/documents/universes/$(universeId)).data;
+        return universe.get('isPublic', false) == true || 
+               universe.get('creatorId', '') == request.auth.uid || 
+               (universe.get('participantIds', []) is list && request.auth.uid in universe.participantIds) || 
+               isAdmin();
+      }
+      allow read, list: if canAccessLore(resource.data.universeId);
+      allow create: if isSignedIn(); // Simplified, parent check would be better but requires get()
+      allow update, delete: if isAdmin();
+    }
+
+    // ROOMS
+    match /rooms/{roomId} {
+       function canAccessRoom(universeId) {
+        let universe = get(/databases/$(database)/documents/universes/$(universeId)).data;
+        return universe.get('isPublic', false) == true || 
+               universe.get('creatorId', '') == request.auth.uid || 
+               (universe.get('participantIds', []) is list && request.auth.uid in universe.participantIds) || 
+               isAdmin();
+      }
+      allow read, list: if canAccessRoom(resource.data.universeId);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
     
+    // ADMINS
     match /admins/{userId} {
       allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

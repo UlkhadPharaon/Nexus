@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "preferredModel": { "type": "string", "enum": ["mistral-small", "nemotron-nano"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "Character": {
+      "title": "Character",
+      "description": "AI character definition",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "description": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "isDeleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "creatorId", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Chat session between user and characters",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "characterId": { "type": "string" },
+        "characterName": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "participantIds": { "type": "array", "items": { "type": "string" } },
+        "isDeleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "characterId", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Single message within a conversation",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+        "content": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "isDeleted": { "type": "boolean" }
+      },
+      "required": ["role", "content", "timestamp"]
+    },
+    "Universe": {
+      "title": "Universe",
+      "description": "A shared setting for RPG or storytelling",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "participantIds": { "type": "array", "items": { "type": "string" } },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "creatorId", "createdAt"]
+    },
+    "LoreEntry": {
+      "title": "LoreEntry",
+      "description": "Background information for a universe",
+      "type": "object",
+      "properties": {
+        "universeId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["universeId", "title", "content", "createdAt"]
+    },
+    "UniverseRoom": {
+      "title": "UniverseRoom",
+      "description": "A location within a universe",
+      "type": "object",
+      "properties": {
+        "universeId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["universeId", "name", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/characters/{characterId}": {
+      "schema": "Character",
+      "description": "Available characters"
+    },
+    "/folders/{folderId}": {
+      "schema": {
+        "title": "Folder",
+        "description": "Character categorization",
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "name": { "type": "string" },
+          "characterIds": { "type": "array" }
+        }
+      },
+      "description": "User character folders"
+    },
+    "/personas/{personaId}": {
+      "schema": {
+        "title": "Persona",
+        "description": "User personal profiles for roleplay",
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "description": "User personas"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "User-character conversations"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages in a conversation"
+    },
+    "/universes/{universeId}": {
+      "schema": "Universe",
+      "description": "RPG Universes"
+    },
+    "/lore/{loreId}": {
+      "schema": "LoreEntry",
+      "description": "Lore entries for universes"
+    },
+    "/rooms/{roomId}": {
+      "schema": "UniverseRoom",
+      "description": "Rooms for universes"
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "title": "Admin",
+        "description": "Admin users list",
+        "type": "object",
+        "properties": {
+          "role": { "type": "string" }
+        }
+      },
+      "description": "Admin registry"
+    }
+  }
+}
